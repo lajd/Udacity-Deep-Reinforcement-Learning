@@ -1,12 +1,8 @@
-# Import common libraries
-import sys
 import numpy as np
 from typing import List, Union
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
-# Set plotting options
-# %matplotlib inline
 plt.style.use('ggplot')
 np.set_printoptions(precision=3, linewidth=120)
 

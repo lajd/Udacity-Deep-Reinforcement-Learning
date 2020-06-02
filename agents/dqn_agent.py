@@ -1,178 +1,212 @@
+import os
 import numpy as np
-import random
-from collections import namedtuple, deque
+from typing import Tuple
 from agents.base import Agent
 from agents.policies.base import Policy
-from tools.lr_scheduler import LRScheduler
 from copy import deepcopy
 import torch
-import torch.nn.functional as F
-from tools.memory import Memory
-from tools.experience import Experience
-
+from agents.memory.prioritized_memory import Memory
+from tools.rl_constants import Experience
+from torch.optim.lr_scheduler import _LRScheduler
+from tools.misc import set_seed
+from agents.models.base import BaseModel
+from tools.rl_constants import Action
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+NUM_FRAMES = 4
 
 
 class DQNAgent(Agent):
     """Interacts with and learns from the environment."""
 
     def __init__(self,
-                 state_size: int,
+                 state_shape: Tuple[int, ...],
                  action_size: int,
-                 model: torch.nn.Module,
+                 model: BaseModel,
                  policy: Policy,
-                 lr_scheduler: LRScheduler,
+                 memory: Memory,
+                 lr_scheduler: _LRScheduler,
                  optimizer: torch.optim.Optimizer,
-                 replay_buffer_size: int = int(1e5),
                  batch_size: int = 32,
                  gamma: float = 0.95,
                  tau: float = 1e-3,
                  update_frequency: int = 5,
                  warmup_steps: int = 0,
+                 seed: int = None,
+                 action_repeats: int = 1,
+                 gradient_clip: float = 1
                  ):
         """Initialize an Agent object.
 
-        Params
-        ======
-            state_size (int): dimension of each state
-            layer_sizes (tuple[int]): Hidden layer sizes
-            action_size (int): dimension of each action
+        Args:
+            state_shape (Tuple[int, ...]): Shape of the state
+            action_size (int): Number of possible integer actions
+            model (torch.nn.Module): Model producing actions from state
+            policy (Policy):
+            memory: Memory,
+            lr_scheduler: _LRScheduler,
+            optimizer: torch.optim.Optimizer,
+            batch_size: int = 32,
+            gamma: float = 0.95,
+            tau: float = 1e-3,
+            update_frequency: int = 5,
+            warmup_steps: int = 0,
+            seed: int = None
         """
         super().__init__(
-            state_size=state_size,
-            action_size=state_size,
+            state_shape=state_shape,
+            action_size=action_size,
             policy=policy,
             lr_scheduler=lr_scheduler,
             optimizer=optimizer
         )
-        self.replay_buffer_size = replay_buffer_size
         self.batch_size = batch_size
         self.gamma = gamma
         self.tau = tau
         self.update_frequency = update_frequency
         self.warmup_steps = warmup_steps
+        self.gradient_clip = gradient_clip
 
-        self.qnetwork_local = model.to(device)
-        self.qnetwork_target = deepcopy(model).to(device)
+        self.previous_action = None
+        self.action_repeats = action_repeats
 
-        # Replay memory
-        self.memory = Memory(
-            capacity=self.replay_buffer_size,
-            state_shape=(1, state_size),
-        )
+        # Double DQN
+        self.online_qnetwork = model.to(device)
+        self.target_qnetwork = deepcopy(model).to(device).eval()
+
+        self.memory = memory
 
         self.t_step = 0
+        self.episode_step = 0
+        self.losses = []
 
-    def get_agent_networks(self):
-        return {
-            "qnetwork_local": self.qnetwork_local
-        }
+        if seed:
+            set_seed(seed)
+            self.online_qnetwork.set_seed(seed)
+            self.target_qnetwork.set_seed(seed)
 
-    def load_agent_networks(self, agent_network_path_dict: dict):
-        if 'qnetwork_local' not in agent_network_path_dict:
-            raise ValueError("DQN agent expects network `qnetwork_local`")
-        self.qnetwork_local.load_state_dict(torch.load(agent_network_path_dict['qnetwork_local']))
-        self.set_mode('evaluate')
+    def save(self, save_pth: str):
+        torch.save(self.online_qnetwork.state_dict(), save_pth)
 
-    def step_episode(self, episode: int):
-        self.policy.step_episode(episode)
+    def load_pretrained(self, path_to_online_network_pth: str):
+        assert os.path.exists(path_to_online_network_pth), "Path does not exist"
+        self.online_qnetwork.load_state_dict(torch.load(path_to_online_network_pth))
+
+    def preprocess_state(self, state: torch.Tensor):
+        preprocessed_state = self.online_qnetwork.preprocess_state(state)
+        return preprocessed_state
+
+    def step_episode(self, episode: int, param_frequency: int = 10):
+        self.episode_step += 1
+        self.policy.step(episode)
         self.lr_scheduler.step()
+        self.memory.step(episode)
+
+        self.online_qnetwork.step_episode(episode)
+        self.target_qnetwork.step_episode(episode)
         return True
 
-    def step(self, state: np.array, action: np.array, reward: np.array, next_state: np.array, done: np.array, **kwargs):
+    def step(self, experience: Experience, **kwargs) -> None:
         """Step the agent in response to a change in environment"""
-        # Save experience in replay memory
-
-        # self.memory.add(state, action, reward, next_state, done)
-
-        experience = Experience(state=state, action=action, reward=reward, next_state=next_state, done=done)
-
-        # # # Learn every UPDATE_EVERY time steps.
         self.t_step += 1
-        if self.t_step > self.warmup_steps and self.t_step % self.update_frequency == 0:
-            # If enough samples are available in memory, get random subset and learn
-            if len(self.memory) > self.batch_size:
-                states, actions, rewards, next_states, terminal, idxs, is_weights = self.memory.sample(self.batch_size)
-                # experiences = self.memory.sample()
-                experiences = (states, actions, rewards, next_states, terminal)
-                td_error = self.learn(experiences, self.gamma)
-                for i, (s, a, r, ns, t) in enumerate(zip(experiences)):
-                    experience = Experience(state=s, action=a, reward=r, next_state=ns, done=t)
-                    self.memory.add(experience.as_tuple(), td_error[i])
-        else:
-            # Default the priority to the reward
-            self.memory.add(experience.as_tuple(), reward)
 
-    def act(self, state, eps=0.):
+        # Add the experience, defaulting the priority 0
+        # self.memory.add(experience, 0)
+        self.memory.add(experience)
+
+        # If enough samples are available in memory, get random subset and learn
+        if self.t_step > self.warmup_steps and self.t_step % self.update_frequency == 0 and len(self.memory) > self.batch_size:
+            beta = 0.6 + self.episode_step/1200
+            state_frames, actions, rewards, next_state_frames, terminal, idxs, is_weights = self.memory.sample(self.batch_size, beta)
+            experiences = (state_frames, actions, rewards, next_state_frames, terminal)
+            loss, errors = self.learn(experiences, self.gamma, sample_weights=is_weights)
+
+            with torch.no_grad():
+                if errors.min() < 0:
+                    raise RuntimeError("Errors must be > 0, found {}".format(errors.min()))
+
+                priorities = errors.detach().cpu().numpy()
+                self.memory.update(idxs, priorities)
+
+            # Perform any post-backprop updates
+            self.online_qnetwork.step()
+            self.target_qnetwork.step()
+
+            self.param_capture.add('loss', loss)
+
+    def act(self, state: torch.Tensor) -> Action:
         """Returns actions for given state as per current policy.
 
-        Params
-        ======
-            state (array_like): current state
-        """
-        state = torch.from_numpy(state).float().unsqueeze(0).to(device)
-        self.qnetwork_local.eval()
-        with torch.no_grad():
-            action_values = self.qnetwork_local(state)
-        self.qnetwork_local.train()
+        Args:
+            state (np.array): Current environment state
 
-        action = self.policy.get_action(action_values=action_values)
+        Returns:
+            action (int): The action to perform
+        """
+        state = state.to(device)
+        state.requires_grad = False
+
+        if not self.training:
+            # Run in evaluation mode
+            action = self.policy.get_action(state=state, model=self.online_qnetwork)
+        else:
+            if self.t_step < self.warmup_steps:
+                # Take a random action
+                action = Action(value=np.random.randint(0, self.action_size), distribution=None)
+            elif not self.previous_action or self.t_step % self.action_repeats == 0:
+                # Get the action from the policy
+                action = self.policy.get_action(state=state, model=self.online_qnetwork)
+                self.previous_action = action
+            else:
+                # Repeat the last action
+                action = self.previous_action
         return action
 
-    def learn(self, experiences, gamma):
-        """Update value parameters using given batch of experience tuples.
+    def learn(self, experiences: Tuple[np.array, ...], gamma: float, sample_weights: np.array) -> tuple:
+        """Update value parameters using given batch of experience tuples and return TD error
 
-        Params
-        ======
-            experiences (Tuple[torch.Variable]): tuple of (s, a, r, s', done) tuples
-            gamma (float): discount factor
+        Args:
+            experiences (Tuple[np.array, ...]): Tuple of (states, actions, rewwards, next_states, terminal)
+            gamma (float): The discount factor to apply to future experiences
+            sample_weights (np.array): The weights to apply to each experience
+
+        Returns:
+            td_errors (torch.FloatTensor): The TD errors for each sample
         """
-        states, actions, rewards, next_states, dones = experiences
 
-        # Get the expected value of q for each action taken in `actions`
-        q_expected = self.qnetwork_local(states).gather(1, actions)
+        # By default, calculate TD errors. Some DQN modifications (eg. categorical DQN) use custom errors/loss
+        assert sample_weights.min() >= 0, "Sample weights must be positive, {}".format(sample_weights.min())
+        loss, errors = self.policy.compute_errors(
+            self.online_qnetwork,
+            self.target_qnetwork,
+            experiences,
+            error_weights=sample_weights,
+            gamma=gamma
+        )
+        assert errors.min() >= 0
 
-        # Get the optimal (target) value of q(s', a')
-        next_q_targets = gamma*self.qnetwork_target(next_states).detach().max(1)[0].unsqueeze(1)
-        q_targets = rewards + gamma * next_q_targets * (1 - dones)
+        # Perform optimization step
+        self.optimizer.zero_grad()
+        loss.backward()
+        for param in self.online_qnetwork.parameters():
+            param.grad.data.clamp_(-self.gradient_clip, self.gradient_clip)
+        self.optimizer.step()
 
-        # Calculate the TD error
-        # td_error
+        # Perform a soft update of the target -> local network
+        self.soft_update(self.online_qnetwork, self.target_qnetwork, self.tau)
+        return loss, errors
 
-        def huber_loss(loss):
-            return 0.5 * loss ** 2 if abs(loss) < 1.0 else abs(loss) - 0.5
+    @staticmethod
+    def soft_update(online_model, target_model, tau) -> None:
+        """Soft update model parameters from local to target network.
 
-        td_errors = [huber_loss(q_targets - q_expected) for i in range(states.shape[0])]
-
-        # Use weighted MSE loss
-        weights = td_errors
-        loss = torch.sum(weights * (q_expected - q_targets) ** 2)
-
-        # # Back propagate
-        # loss = F.mse_loss(q_expected, q_targets)
-        #
-        # def weighted_mse_loss(input, target, weight):
-        #     return torch.sum(weight * (input - target) ** 2)
-
-        self.optimizer.zero_grad()  # Zero gradients from previous step
-        loss.backward()  # Compute the derivatives of the loss WRT the parameters (anything requiring gradients) using BP
-        self.optimizer.step()  # Instruct the optimizer to take a step based on the gradients of the parameters
-
-        # ------------------- update target network ------------------- #
-        self.soft_update(self.qnetwork_local, self.qnetwork_target, self.tau)
-        return td_errors
-
-
-    def soft_update(self, local_model, target_model, tau):
-        """Soft update model parameters.
         θ_target = τ*θ_local + (1 - τ)*θ_target
 
-        Params
-        ======
-            local_model (PyTorch model): weights will be copied from
+        Args:
+            online_model (PyTorch model): weights will be copied from
             target_model (PyTorch model): weights will be copied to
             tau (float): interpolation parameter
         """
-        for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
+        for target_param, local_param in zip(target_model.parameters(), online_model.parameters()):
             target_param.data.copy_(tau * local_param.data + (1.0 - tau) * target_param.data)

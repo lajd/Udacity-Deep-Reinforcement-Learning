@@ -1,15 +1,12 @@
-import numpy as np
-
-
 class Node:
-    def __init__(self, left: Node, right: Node, is_leaf: bool = False, idx: int = None):
+    def __init__(self, left, right, is_leaf: bool = False, idx: int = None):
         self.left = left
         self.right = right
         self.is_leaf = is_leaf
         if not self.is_leaf:
             self.value = self.left.value + self.right.value
         self.parent = None
-        self.idx = idx  # this value is only set for leaf nodes
+        self.idx = idx
         if left is not None:
             left.parent = self
         if right is not None:
@@ -52,24 +49,3 @@ class SumTree:
         node.value += change
         if node.parent is not None:
             self.propagate_changes(change, node.parent)
-
-
-# input = [1, 4, 2, 3]
-# root_node, leaf_nodes = create_tree(input)
-#
-#
-# def demonstrate_sampling(root_node: Node):
-#     tree_total = root_node.value
-#     iterations = 1000000
-#     selected_vals = []
-#     for i in range(iterations):
-#         rand_val = np.random.uniform(0, tree_total)
-#         selected_val = get_node(rand_val, root_node).value
-#         selected_vals.append(selected_val)
-#
-#     return selected_vals
-#
-#
-# selected_vals = demonstrate_sampling(root_node)
-# # the below print statement should output ~4
-# print(f"Should be ~4: {sum([1 for x in selected_vals if x == 4]) / sum([1 for y in selected_vals if y == 1])}")

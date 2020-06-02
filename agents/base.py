@@ -1,50 +1,56 @@
 from abc import abstractmethod
 import torch
 import numpy as np
-import datetime
+from typing import Tuple
 from agents.policies.base import Policy
-from tools.lr_scheduler import LRScheduler
+from torch.optim.lr_scheduler import _LRScheduler
+from tools.rl_constants import Experience, Action
+from tools.parameter_capture import ParameterCapture
 
 
 class Agent(torch.nn.Module):
-    def __init__(self, state_size: int, action_size: int, policy: Policy, optimizer: torch.optim.Optimizer, lr_scheduler: LRScheduler):
+    """ An agent which received state & reward from, and interacts with, and environment"""
+    def __init__(self, state_shape: Tuple[int, ...], action_size: int, policy: Policy, optimizer: torch.optim.Optimizer, lr_scheduler: _LRScheduler):
         super().__init__()
-        self.state_size = state_size
+        self.state_shape = state_shape
         self.action_size = action_size
-        # Define the policy
-        self.policy = policy
 
-        self.optimizer = optimizer
-        self.lr_scheduler = lr_scheduler
+        self.policy: Policy = policy
+        self.optimizer: optimizer = optimizer
+        self.lr_scheduler: _LRScheduler = lr_scheduler
+
+        self.param_capture = ParameterCapture()
 
     def set_mode(self, mode: str):
+        """ Set the mode of the agent """
         if mode == 'train':
             self.train()
+            self.policy.train = True
         elif mode == 'evaluate':
             self.eval()
             self.policy.eval()  # Make the policy greedy
         else:
             raise ValueError("only modes `train`, `evaluate` are supported")
 
+    def preprocess_state(self, state: torch.Tensor):
+        return state
+
     @abstractmethod
-    def get_agent_networks(self):
+    def get_agent_networks(self) -> dict:
+        """ Get the agent's trainable networks """
+        return {}
+
+    @abstractmethod
+    def act(self, state: np.array) -> Action:
+        """Determine an action given an environment state"""
         pass
 
     @abstractmethod
-    def act(self, state: np.array):
+    def step(self, experience: Experience, **kwargs) -> None:
+        """Take a step in the environment, encompassing model learning and memory population"""
         pass
 
     @abstractmethod
-    def step(self, state: np.array, action: np.array, reward: np.array, next_state: np.array, done: np.array, **kwargs):
+    def step_episode(self, episode: int) -> None:
+        """Perform any end-of-episode updates"""
         pass
-
-    @abstractmethod
-    def step_episode(self, episode: int):
-        pass
-
-    def checkpoint(self, tag: str, checkpoint_dir: str):
-        print('Creating checkpoint for tag {}'.format(tag))
-        agent_networks = self.get_agent_networks()
-        for parameter_name, network in agent_networks.items():
-            torch.save(network.state_dict(), '{}/{}_{}_checkpoint_{}.pth'.format(checkpoint_dir, tag, parameter_name, str(datetime.datetime.utcnow())))
-        return True

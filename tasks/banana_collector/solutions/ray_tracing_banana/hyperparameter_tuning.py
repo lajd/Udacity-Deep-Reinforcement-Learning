@@ -65,7 +65,7 @@ def banana_tuning(update_params: dict):
 
         # Run performance evaluation
         performance, info = simulator.get_agent_performance(
-            agent=agent,
+            agents=[agent],
             n_train_episodes=params["N_EPISODES"],
             n_eval_episodes=params["N_EVAL_EPISODES"],
             max_t=params["MAX_T"],

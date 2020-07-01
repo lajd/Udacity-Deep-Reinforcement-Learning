@@ -7,7 +7,7 @@ import os
 import pickle
 import ast
 
-from tasks.banana_collector.solutions.utils import default_cfg, get_policy, get_memory, get_agent, VISUAL_STATE_SHAPE, ACTION_SIZE, get_simulator
+from tasks.banana_collector.solutions.utils import default_cfg, get_policy, get_memory, get_agent, VISUAL_STATE_SHAPE, ACTION_SIZE, get_simulator, IMAGE_SHAPE
 
 SEED = default_cfg['SEED']
 TUNINGS_DIR = os.path.abspath('visual_tunings')
@@ -32,17 +32,17 @@ def visual_banana_tuning(update_params: dict):
     try:
         params['SUPPORT_RANGE'] = ast.literal_eval(params['SUPPORT_RANGE'])
         params['OUTPUT_FC_HIDDEN_SIZES'] = ast.literal_eval(params['OUTPUT_FC_HIDDEN_SIZES'])
-        params['N_FILTERS'] = ast.literal_eval(params['N_FILTERS'])
+        params['FILTERS'] = ast.literal_eval(params['FILTERS'])
         params['KERNEL_SIZES'] = [ast.literal_eval(i) for i in ast.literal_eval(params["KERNEL_SIZES"])]
         params['STRIDE_SIZES'] = [ast.literal_eval(i) for i in ast.literal_eval(params["STRIDE_SIZES"])]
 
         policy = get_policy(ACTION_SIZE, params)
         print(params)
         featurizer = CNN(
-            state_shape=VISUAL_STATE_SHAPE,
+            image_shape=IMAGE_SHAPE,
             num_stacked_frames=params["NUM_STACKED_FRAMES"],
             grayscale=params["GRAYSCALE"],
-            nfilters=params["N_FILTERS"],
+            filters=params["FILTERS"],
             kernel_sizes=params["KERNEL_SIZES"],
             stride_sizes=params["STRIDE_SIZES"],
         )
@@ -71,7 +71,7 @@ def visual_banana_tuning(update_params: dict):
 
         # Run performance evaluation
         performance, info = simulator.get_agent_performance(
-            agent=agent,
+            agents=[agent],
             n_train_episodes=params["N_EPISODES"],
             n_eval_episodes=params["N_EVAL_EPISODES"],
             max_t=params["MAX_T"],
@@ -105,7 +105,7 @@ if __name__ == '__main__':
              "type": "range",
              "bounds": [0.8, 0.999]
              },
-            {"name": "N_FILTERS",
+            {"name": "FILTERS",
              "type": "choice",
              "values": [
                  '(128, 128, 256)',

@@ -67,12 +67,10 @@ if __name__ == '__main__':
     agent, params = get_solution_agent()
     # Perform training
     agent, training_scores, i_episode, training_time = simulator.train(
-        agent=agent,
-        model_save_path=join(SOLUTION_CHECKPOINT_DIR, 'ray_tracing_banana_solution.pth'),
-        solved_score=13,
+        agents=[agent],
+        solved_score=SOLVED_SCORE,
         max_t=params["MAX_T"],
         n_episodes=default_cfg['N_EPISODES'],
-        eval_every=None
     )
 
     scores = Scores(initialize_scores=training_scores.scores)
@@ -81,3 +79,8 @@ if __name__ == '__main__':
 
     scores.save_scores_plot(PLOT_SAVE_PATH, title_text=title_text)
     fig = scores.plot_scores()
+
+    model_save_path = join(SOLUTION_CHECKPOINT_DIR, 'ray_tracing_banana_solution.pth')
+
+    if training_scores.get_mean_sliding_scores() > SOLVED_SCORE:
+        agent.save(model_save_path)

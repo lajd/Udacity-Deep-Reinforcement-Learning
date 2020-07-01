@@ -1,13 +1,16 @@
 import numpy as np
 from collections import namedtuple, deque
 import torch
-from typing import Type, NamedTuple, Union
+from typing import Type, NamedTuple, Union, Optional, Callable, Dict
 from tools.data_structures.sumtree import SumTree
-from tools.rl_constants import Experience
+from tools.rl_constants import Experience, ExperienceBatch
 from tools.parameter_decay import ParameterScheduler
 from tools.misc import set_seed
 from itertools import islice
 from torch.autograd import Variable
+from typing import List
+import random
+from collections import Counter
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -19,10 +22,10 @@ class ReplayBuffer:
         self.buffer = deque([
             Experience(
                 state=torch.zeros(state_shape),
-                action=0,
+                action=torch.FloatTensor([0]),
                 reward=0,
                 next_state=None,
-                done=0,
+                done=torch.LongTensor([0]),
                 t_step=-1
             ) for _ in range(capacity)
         ], maxlen=capacity)
@@ -40,13 +43,14 @@ class ReplayBuffer:
             return self.buffer[item]
 
 
-class Memory(object):
+class PrioritizedMemory:
     """ Memory buffer for storing and sampling experience
 
     Adapted from https://adventuresinmachinelearning.com/sumtree-introduction-python/
     """
     def __init__(self, capacity: int, state_shape: tuple, beta_scheduler: ParameterScheduler, alpha_scheduler: ParameterScheduler,
-                 min_priority: float = 0.01, num_stacked_frames: int = 1, seed: int = None):
+                 min_priority: float = 1e-3, num_stacked_frames: int = 1,
+                 seed: int = None, continuous_actions: bool = False, ):
         self.capacity = capacity
 
         self.state_shape = state_shape
@@ -66,10 +70,12 @@ class Memory(object):
         self.min_priority = min_priority
         self.num_stacked_frames = num_stacked_frames
 
+        self.continuous_actions = continuous_actions
+
         if seed:
             set_seed(seed)
 
-    def step(self, episode: int):
+    def step_episode(self, episode: int):
         """Update internal memory parameters at the end of an episode
 
         Args:
@@ -90,8 +96,7 @@ class Memory(object):
         curr_write_idx, and the priority is stored in the sumtree. After the experience is added, the
         current write index is incremented, along with the number of available_samples.
         """
-
-        current_experience = Experience(state=experience.state, action=experience.action, reward=experience.reward, done=experience.done, t_step=experience.t_step, next_state=None)
+        current_experience = experience.cpu()
         self.buffer[self.curr_write_idx] = current_experience
         self.update(self.curr_write_idx, priority)
 
@@ -122,7 +127,59 @@ class Memory(object):
         for i, idx in enumerate(indices):
             self.sum_tree.update_node(self.sum_tree.leaf_nodes[idx], float(priorities[i]))
 
-    def sample(self, num_samples: int, *args):
+    def sample(self, num_samples: int, *args) -> ExperienceBatch:
+        """Sample a batch of experience from the memory buffer"""
+        sampled_idxs = []
+        is_weights = []
+        sample_no = 0
+        while sample_no < num_samples:
+            sample_val = np.random.uniform(0, self.sum_tree.root_node.value)
+            sample_node = self.sum_tree.get_node(sample_val, self.sum_tree.root_node)
+            sampled_idxs.append(sample_node.idx)
+            p = sample_node.value / self.sum_tree.root_node.value
+            is_weights.append((self.available_samples + 1) * p)
+            sample_no += 1
+
+        # apply the beta factor and normalize so that the maximum is_weight < 1
+        is_weights = np.array(is_weights)
+        is_weights = np.power(is_weights, - self.beta)
+        # now load up the state and next state variables according to sampled idxs
+        states, next_states, actions, rewards, terminal = [], [], [], [], []
+
+        for idx in sampled_idxs:
+            experience: Experience = self.buffer[idx]
+            states.append(experience.state)
+            next_states.append(experience.next_state)
+
+            actions.append(experience.action)
+            rewards.append(experience.reward)
+            terminal.append(experience.done)
+
+        f = torch.FloatTensor if self.continuous_actions else torch.LongTensor
+        experience_batch = ExperienceBatch(
+            states=torch.stack(states).float(),
+            actions=f(torch.stack(actions)).view(num_samples, -1),
+            rewards=torch.FloatTensor(rewards).view(num_samples, 1),
+            next_states=torch.stack(next_states).float(),
+            dones=torch.LongTensor(terminal).view(num_samples, 1),
+            sample_idxs=torch.LongTensor(sampled_idxs).view(num_samples, 1),
+            is_weights=torch.from_numpy(is_weights).view(num_samples, 1).float(),
+        )
+        experience_batch.to(device)
+        return experience_batch
+
+    def __len__(self):
+        """Return the current size of internal memory."""
+        return self.available_samples
+
+
+class ExtendedPrioritizedMemory(PrioritizedMemory):
+    def __init__(self, capacity: int, state_shape: tuple, beta_scheduler: ParameterScheduler, alpha_scheduler: ParameterScheduler,
+                 min_priority: float = 1e-7,
+                 seed: int = None, continuous_actions: bool = False, ):
+        super().__init__(capacity, state_shape, beta_scheduler, alpha_scheduler, min_priority, seed, continuous_actions)
+
+    def sample(self, num_samples: int, *args) -> ExperienceBatch:
         """Sample a batch of experience from the memory buffer
 
         Firstly, experiences are sampled from the memory sumtree proportionally to their priority
@@ -142,7 +199,7 @@ class Memory(object):
 
         Returns:
             states (torch.FloatTensor): Shape (batch_size, num_stacked_frames, *state_shape)
-            actions (torch.LongTensor): Shape (batch_size, 1)
+            actions (torch.LongTensor): Shape (batch_size, action_size)
             rewards (torch.FloatTensor): Shape (batch_size, 1)
             next_states (torch.FloatTensor): Shape (batch_size, num_stacked_frames, *state_shape)
             terminal (torch.Tensor): Shape (batch_size, 1)
@@ -171,10 +228,8 @@ class Memory(object):
         # apply the beta factor and normalize so that the maximum is_weight < 1
         is_weights = np.array(is_weights)
         is_weights = np.power(is_weights, - self.beta)
-        is_weights = is_weights / np.max(is_weights)
         # now load up the state and next state variables according to sampled idxs
-        states = []
-        next_states = []
+        states, next_states = [], []
 
         actions, rewards, terminal = [], [], []
 
@@ -194,15 +249,82 @@ class Memory(object):
             rewards.append(experience_frame.reward)
             terminal.append(experience_frame.done)
 
-        states = Variable(torch.stack(states).float().to(device))
-        next_states = Variable(torch.stack(next_states).float().to(device))
-        actions = Variable(torch.LongTensor(actions).view(-1, 1).to(device))
-        rewards = Variable(torch.FloatTensor(rewards).view(-1, 1).to(device))
-        terminal = Variable(torch.FloatTensor(terminal).view(-1, 1).to(device))
-        sampled_idxs = torch.LongTensor(sampled_idxs).view(-1, 1)
-        is_weights = Variable(torch.FloatTensor(is_weights).view(-1, 1).to(device))
-        return states, actions, rewards, next_states, terminal, sampled_idxs, is_weights
+        f = torch.FloatTensor if self.continuous_actions else torch.LongTensor
+        experience_batch = ExperienceBatch(
+            states=torch.stack(states).float(),
+            actions=f(torch.stack(actions)).view(num_samples, -1),
+            rewards=torch.FloatTensor(rewards).view(num_samples, 1),
+            next_states=torch.stack(next_states).float(),
+            dones=torch.LongTensor(terminal).view(num_samples, 1),
+            sample_idxs=torch.LongTensor(sampled_idxs).view(num_samples, 1),
+            is_weights=torch.from_numpy(is_weights).view(num_samples, 1).float(),
+        )
+        experience_batch.to(device)
+        return experience_batch
 
-    def __len__(self):
-        """Return the current size of internal memory."""
-        return self.available_samples
+class MemoryStreams:
+    def __init__(self, stream_ids: List[str], capacity, state_shape, beta_scheduler, alpha_scheduler,
+                 min_priority: Optional[float] = None, num_stacked_frames=1, seed=None, continuous_actions=False):
+        self.streams: Dict[str, PrioritizedMemory] = {}
+        if seed:
+            set_seed(seed)
+        for s in stream_ids:
+            self.streams[s] = PrioritizedMemory(
+                capacity,
+                state_shape,
+                beta_scheduler,
+                alpha_scheduler,
+                min_priority=min_priority,
+                num_stacked_frames=num_stacked_frames,
+                seed=seed,
+                continuous_actions=continuous_actions
+            )
+
+    def sample(self, num_samples: int) -> ExperienceBatch:
+        # keys, values = [], []
+        # for k, memory_stream in self.streams.items():
+        #     keys.append(k)
+        #     values.append(memory_stream.sum_tree.root_node.value)
+        #
+        # values = np.array(values)
+        # probs = values / np.sum(values)
+        #
+        # sampled_streams_ = [np.random.choice(keys, p=probs) for _ in range(num_samples)]
+
+        sampled_streams_ = random.choices(list(self.streams.keys()), k=num_samples)
+        streams_to_num_samples = Counter(sampled_streams_)
+        sampled_streams, states, actions, rewards, next_states, terminal, sampled_idxs, is_weights = [], [], [], [], [], [], [], []
+
+        sampled_streams = []
+        for sampled_stream, n_stream_samples in streams_to_num_samples.items():
+            experience_batch = self.streams[sampled_stream].sample(n_stream_samples)
+            states.extend(experience_batch.states)
+            actions.extend(experience_batch.actions)
+            rewards.extend(experience_batch.rewards)
+            next_states.extend(experience_batch.next_states)
+            terminal.extend(experience_batch.dones)
+            sampled_idxs.extend(experience_batch.sample_idxs)
+            is_weights.extend(experience_batch.is_weights)
+            sampled_streams.extend([sampled_stream] * n_stream_samples)
+
+        experience_batch = ExperienceBatch(
+            states=torch.stack(states).float(),
+            actions=torch.stack(actions).float(),
+            rewards=torch.stack(rewards),
+            next_states=torch.stack(next_states),
+            dones=torch.stack(terminal),
+            sample_idxs=torch.stack(sampled_idxs),
+            is_weights=torch.stack(is_weights),
+            memory_streams=sampled_streams
+        )
+
+        experience_batch.shuffle()
+        experience_batch.to(device)
+        return experience_batch
+
+    def __getitem__(self, stream_name):
+        return self.streams[stream_name]
+
+    def __iter__(self):
+        for stream_id, memory in self.streams.items():
+            yield stream_id, memory

@@ -1,15 +1,16 @@
 import torch
 from agents.policies.epsilon_greedy import EpsilonGreedyPolicy
 from agents.dqn_agent import DQNAgent
-from agents.policies.categorical import CategoricalDQNPolicy
-from agents.policies.max import MaxPolicy
-from agents.memory.prioritized_memory import Memory
+from agents.policies.categorical_policy import CategoricalDQNPolicy
+from agents.policies.max_policy import MaxPolicy
+from agents.memory.prioritized_memory import PrioritizedMemory
 from tools.parameter_decay import ParameterScheduler
 from unityagents import UnityEnvironment
 from simulation.unity_environment import UnityEnvironmentSimulator
 from os.path import join, dirname
 
 ENVIRONMENTS_DIR = join(dirname(dirname(__file__)), 'environments')
+IMAGE_SHAPE = (84, 84, 3)
 VISUAL_STATE_SHAPE = (1, 84, 84, 3)
 VECTOR_STATE_SHAPE = (1, 37)
 ACTION_SIZE = 4
@@ -56,7 +57,7 @@ default_cfg = {
     # Featurizers
     ###############
     # CNN Featurizer
-    "N_FILTERS": (32, 64, 64),
+    "FILTERS": (32, 64, 64),
     "KERNEL_SIZES": [(1, 3, 3), (1, 3, 3), (4, 3, 3)],
     "STRIDE_SIZES": [(1, 3, 3), (1, 3, 3), (1, 3, 3)],
     # MLP Featurizer params
@@ -112,7 +113,7 @@ def get_policy(action_size: int, params):
 
 
 def get_memory(state_shape: tuple, params):
-    memory = Memory(
+    memory = PrioritizedMemory(
         capacity=params['MEMORY_CAPACITY'],
         state_shape=state_shape,
         num_stacked_frames=params["NUM_STACKED_FRAMES"],

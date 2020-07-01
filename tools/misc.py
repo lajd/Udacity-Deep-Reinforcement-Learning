@@ -29,3 +29,17 @@ def get_object_size(obj, seen=None):
     elif hasattr(obj, '__iter__') and not isinstance(obj, (str, bytes, bytearray)):
         size += sum([get_object_size(i, seen) for i in obj])
     return size
+
+
+def soft_update(online_model, target_model, tau) -> None:
+    """Soft update model parameters from local to target network.
+
+    θ_target = τ*θ_local + (1 - τ)*θ_target
+
+    Args:
+        online_model (PyTorch model): weights will be copied from
+        target_model (PyTorch model): weights will be copied to
+        tau (float): interpolation parameter
+    """
+    for target_param, local_param in zip(target_model.parameters(), online_model.parameters()):
+        target_param.data.copy_(tau * local_param.data + (1.0 - tau) * target_param.data)

@@ -10,5 +10,5 @@ if __name__ == '__main__':
     simulator = get_simulator(visual=False)
 
     agent, params = get_solution_agent()
-    agent.load_pretrained(MODEL_SAVE_PATH)
+    agent.load(MODEL_SAVE_PATH)
     simulator.evaluate(agent)

@@ -2,7 +2,7 @@ from abc import abstractmethod
 import torch
 import numpy as np
 from typing import Tuple
-from agents.policies.base import Policy
+from agents.policies.base_policy import Policy
 from torch.optim.lr_scheduler import _LRScheduler
 from tools.rl_constants import Experience, Action
 from tools.parameter_capture import ParameterCapture
@@ -26,7 +26,7 @@ class Agent(torch.nn.Module):
         if mode == 'train':
             self.train()
             self.policy.train = True
-        elif mode == 'evaluate':
+        elif mode.startswith('eval'):
             self.eval()
             self.policy.eval()  # Make the policy greedy
         else:
@@ -36,13 +36,22 @@ class Agent(torch.nn.Module):
         return state
 
     @abstractmethod
-    def get_agent_networks(self) -> dict:
-        """ Get the agent's trainable networks """
-        return {}
+    def save(self, *args, **kwargs) -> dict:
+        """Save the agent model"""
+        pass
 
     @abstractmethod
-    def act(self, state: np.array) -> Action:
+    def load(self, *args, **kwargs):
+        """ Load the agent model """
+        pass
+
+    @abstractmethod
+    def get_action(self, state: np.array) -> Action:
         """Determine an action given an environment state"""
+        pass
+
+    @abstractmethod
+    def get_random_action(self, *args) -> Action:
         pass
 
     @abstractmethod

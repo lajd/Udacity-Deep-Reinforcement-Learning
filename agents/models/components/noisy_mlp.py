@@ -68,8 +68,8 @@ class NoisyLinear(nn.Module):
         self.reset_noise()
 
     def forward(self, x):
-        weight_epsilon = self.weight_epsilon.cuda().to(device)
-        bias_epsilon = self.bias_epsilon.cuda().to(device)
+        weight_epsilon = self.weight_epsilon.to(device)
+        bias_epsilon = self.bias_epsilon.to(device)
 
         if self.training:
             weight = self.weight_mu + self.weight_sigma.mul(Variable(weight_epsilon))

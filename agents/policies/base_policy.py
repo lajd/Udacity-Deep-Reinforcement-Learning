@@ -33,6 +33,10 @@ class Policy:
     def get_action(self, state: np.array, model: torch.nn.Module) -> Action:
         pass
 
+    @abstractmethod
+    def get_random_action(self, *args):
+        pass
+
     # Acts with an ε-greedy policy (used for evaluation)
     def get_action_e_greedy(self, state: np.array, model: torch.nn.Module, epsilon=0.001) -> Action:  # High ε can reduce evaluation scores drastically
         if np.random.random() < epsilon:
@@ -53,9 +57,6 @@ class Policy:
         expected_q_value = rewards + gamma * qa_next * (1 - dones)
 
         errors = F.mse_loss(qa, torch.autograd.Variable(expected_q_value.data), reduction='none')
-
-        # Normalize error weights by the max
-        error_weights /= error_weights.max()
 
         # Get Loss and TD Errors
         errors = errors * error_weights.reshape_as(errors)

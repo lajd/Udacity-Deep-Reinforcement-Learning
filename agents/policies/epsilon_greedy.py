@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 from tools.parameter_decay import ParameterScheduler
-from agents.policies.base import Policy
+from agents.policies.base_policy import Policy
 import random
 from tools.rl_constants import Action
 

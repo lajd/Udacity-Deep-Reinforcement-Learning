@@ -43,7 +43,7 @@ def get_solution_agent():
     policy = get_policy(ACTION_SIZE, params)
 
     featurizer = CNN(
-        state_shape=VISUAL_STATE_SHAPE,
+        image_shape=VISUAL_STATE_SHAPE[1:],
         num_stacked_frames=params["NUM_STACKED_FRAMES"],
         grayscale=params["GRAYSCALE"],
         nfilters=params["N_FILTERS"],
@@ -84,10 +84,8 @@ if __name__ == '__main__':
 
     # Run Training
     agent, training_scores, i_episode, training_time = simulator.train(
-        agent=agent,
-        model_save_path=MODEL_SAVE_PATH,
+        agents=[agent],
         max_t=params["MAX_T"],
-        eval_every=None,
         solved_score=SOLVED_SCORE,
     )
 
@@ -98,3 +96,6 @@ if __name__ == '__main__':
                  f"mean score in {i_episode} episodes after {training_time}m"
     scores.save_scores_plot(save_path=PLOT_SAVE_PATH, title_text=title_text)
     fig = scores.plot_scores(title_text=title_text)
+
+    if training_scores.get_mean_sliding_scores() > SOLVED_SCORE:
+        agent.save(MODEL_SAVE_PATH)

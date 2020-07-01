@@ -57,83 +57,33 @@ The code is organized as follows:
     - Contains common tools for solving tasks
 
 ## Task solutions and reports
-### Yellow Banana Collector
-[image1]: https://user-images.githubusercontent.com/10624937/42135619-d90f2f28-7d12-11e8-8823-82b970a54d7e.gif "Trained Agent"
-![Trained Agent][image1]
-#### Introduction
-In this task, the agent's goal is to collect as many yellow bananas as possible while avoiding blue bananas. </br>
-    There are two variations to this task -- the `Ray-Tracing Banana Collector`, where the state from the environment
-    is a small (37) dimensional vector of hand-crafted features of the agent's velocity, along with ray-based perception
-    of objects around agent's forward direction. In contrast, the `Pixel-Based Banana Collector` receives a raw pixel (RGB image)
-    as state from the environment. Below we go into more details on the task description: </br>
-
-The task is episodic, and in order to solve the environment, the agent must get an average score of +13 over 100 consecutive episodes.
-#### Action Space
-For both the `Ray-based` and `Pixel-based` tasks, the actions available to the agent are the same:
-- **`0`** - move forward.
-- **`1`** - move backward.
-- **`2`** - turn left.
-- **`3`** - turn right.
-
-At each time step, the agent must provide an action to the environment.
-
-##### Reward Structure
-For both the `Ray-based` and `Pixel-based` tasks, the reward structure is the same as well.
-A reward of +1 is provided for collecting a yellow banana, and a reward of -1 is provided for collecting a blue banana.  Thus, the goal of the agent is to collect as many yellow bananas as possible while avoiding blue bananas.  
-
-##### State Space: Ray Tracing Banana Collector
-The state space has 37 dimensions and contains the agent's velocity, along with ray-based perception of objects around agent's forward direction.  Given this information, the agent has to learn how to best select actions.  Four discrete actions are available, corresponding to:
-
-##### State Space: Pixel-Based Banana Collector
-The state space is a 3D tensor of size (84, 84, 3) representing an RGB image of width=height=84 pixels. 
-
-
-#### Preparing the Unity ML-Agent environments
-
-If you're running on linux and wish to download both environments, you can navigate to the [task directory](tasks/banana_collector) run the task directory script [setup_linux.sh](tasks/banana_collector/setup_linux.sh).
-If you're running on a different OS, please follow the instructions below for each environment.
-
-##### Ray-Tracing Banana Collector
-
-1. Download the environment from one of the links below.  You need only select the environment that matches your operating system:
-    - Linux: [click here](https://s3-us-west-1.amazonaws.com/udacity-drlnd/P1/Banana/Banana_Linux.zip)
-    - Mac OSX: [click here](https://s3-us-west-1.amazonaws.com/udacity-drlnd/P1/Banana/Banana.app.zip)
-    - Windows (32-bit): [click here](https://s3-us-west-1.amazonaws.com/udacity-drlnd/P1/Banana/Banana_Windows_x86.zip)
-    - Windows (64-bit): [click here](https://s3-us-west-1.amazonaws.com/udacity-drlnd/P1/Banana/Banana_Windows_x86_64.zip)
-    
-    (_For Windows users_) Check out [this link](https://support.microsoft.com/en-us/help/827218/how-to-determine-whether-a-computer-is-running-a-32-bit-version-or-64) if you need help with determining if your computer is running a 32-bit version or 64-bit version of the Windows operating system.
-
-    (_For AWS_) If you'd like to train the agent on AWS (and have not [enabled a virtual screen](https://github.com/Unity-Technologies/ml-agents/blob/master/docs/Training-on-Amazon-Web-Service.md)), then please use [this link](https://s3-us-west-1.amazonaws.com/udacity-drlnd/P1/Banana/Banana_Linux_NoVis.zip) to obtain the environment.
-
-2. Place the file in `/tasks/banana_collector/environments/Banana_Linux`, and unzip (or decompress) the file. 
-
-##### Pixel-based Banana Collector
-1. Download the environment from one of the links below.  You need only select the environment that matches your operating system:
-- Linux: [click here](https://s3-us-west-1.amazonaws.com/udacity-drlnd/P1/Banana/VisualBanana_Linux.zip)
-- Mac OSX: [click here](https://s3-us-west-1.amazonaws.com/udacity-drlnd/P1/Banana/VisualBanana.app.zip)
-- Windows (32-bit): [click here](https://s3-us-west-1.amazonaws.com/udacity-drlnd/P1/Banana/VisualBanana_Windows_x86.zip)
-- Windows (64-bit): [click here](https://s3-us-west-1.amazonaws.com/udacity-drlnd/P1/Banana/VisualBanana_Windows_x86_64.zip)
-
-Then, place the file in the `/tasks/banana_collector/environments/VisualBanana_Linux`, and unzip (or decompress) the file. 
-
-(_For AWS_) If you'd like to train the agent on AWS, you must follow the instructions to [set up X Server](https://github.com/Unity-Technologies/ml-agents/blob/master/docs/Training-on-Amazon-Web-Service.md), and then download the environment for the **Linux** operating system above.
 
 #### Quick navigation
 - Ray-tracing implementation
-    - [ray tracing banana collector results](tasks/banana_collector/solutions/ray_tracing_banana/RESULTS.pdf)
-    - [ray tracing banana collector report](tasks/banana_collector/solutions/ray_tracing_banana/REPORT.md)
-    - [train_best_model](tasks/banana_collector/solutions/ray_tracing_banana/banana_solution_train.py)
-    - [eval_best_model](tasks/banana_collector/solutions/ray_tracing_banana/banana_solution_eval.py)
+    - [Task/environment Details](tasks/banana_collector/TASK_DETAILS.md)
+    - [REPORT.md](tasks/banana_collector/solutions/ray_tracing_banana/REPORT.md)
+    - [RESULTS.pdf](tasks/banana_collector/solutions/ray_tracing_banana/RESULTS.pdf)
+    - [Train](tasks/banana_collector/solutions/ray_tracing_banana/banana_solution_train.py)
+    - [Eval](tasks/banana_collector/solutions/ray_tracing_banana/banana_solution_eval.py)
 - Visual (pixel) implementation
-    - [pixel based banana collector report](tasks/banana_collector/solutions/pixel_banana/REPORT.md)
-    - [train_best_model](tasks/banana_collector/solutions/pixel_banana/banana_visual_solution_train.py)
-    - [eval_best_model](tasks/banana_collector/solutions/pixel_banana/banana_visual_solution_train.py)
+    - [Task/environment Details](tasks/banana_collector/TASK_DETAILS.md)
+    - [REPORT.md](tasks/banana_collector/solutions/pixel_banana/REPORT.md)
+    - [Train](tasks/banana_collector/solutions/pixel_banana/banana_visual_solution_train.py)
+    - [Eval](tasks/banana_collector/solutions/pixel_banana/banana_visual_solution_train.py)
+- Reacher continuous control (20-agent) implementation
+    - [Task/environment Details](tasks/reacher_continuous_control/TASK_DETAILS.md)
+    - [REPORT.md](tasks/reacher_continuous_control/solutions/ddpg/REPORT.md)
+    - [Train DDPG](tasks/reacher_continuous_control/solutions/ddpg/train_ddpg_baseline.py)
+    - [Eval DDPG](tasks/reacher_continuous_control/solutions/ddpg/eval_ddpg_baseline.py)
+    - [Train TD3](tasks/reacher_continuous_control/solutions/ddpg/train_ddpg_baseline.py)
+    - [Eval TD3](tasks/reacher_continuous_control/solutions/ddpg/eval_td3_baseline.py)
+
 
 ## Agent Implementations and explanation
 Currently only the [Deep Q-Network](https://storage.googleapis.com/deepmind-media/dqn/DQNNaturePaper.pdf) algorithm is implemented, along with
 a few extensions to the original algorithm outlined in the [Rainbow DQN](https://arxiv.org/abs/1710.02298) implementation.
 Below, we discuss the algorithm at a high level, along with the implemented extensions. </br>
- - [Deep Q-Network](https://storage.googleapis.com/deepmind-media/dqn/DQNNaturePaper.pdf) (DQN)
+ - ### [Deep Q-Network](https://storage.googleapis.com/deepmind-media/dqn/DQNNaturePaper.pdf) (DQN)
     ###### Overview
     [Q-Learning](https://en.wikipedia.org/wiki/Q-learning#Variants) is a value-based reinforcement learning algorithm which can be
     used to learn an optimal policy (strategy) for selection actions in an environment. Being value based, the Q-learning algorithm
@@ -253,3 +203,109 @@ Below, we discuss the algorithm at a high level, along with the implemented exte
    which is responsible for computing the errors between the target and online network distributions. Please refer
    to the paper for theoretical details and to this [reference implementation](https://github.com/higgsfield/RL-Adventure/blob/master/7.rainbow%20dqn.ipynb),
    from which the code is adapted from.
+
+ - ### Policy Gradients
+    ###### Overview
+    The objective function is given as:
+    
+    J(&theta;) = &expectation;[&Sum;<sub>t=0</sub><sup>T-1</sup> r<sub>t + 1</sub> | &pi;<sub>&theta;</sub>]
+    
+    With update rule:
+    &theta; &leftarrow; &theta; + d / d&theta; J(&theta;)
+    
+    J(&theta;) = &Sum;<sub>t=i</sub><sup>T-1</sup> P(s<sub>t</sub>, a<sub>t</sub> | &tau;)r<sub>t + 1</sub>
+    
+    Where i is an arbitrary starting point on a trajectory
+        
+    &nabla;<sub>&theta;</sub> J(&theta;) = &Sum;<sub>t=0</sub><sup>T-1</sup> &nabla;<sub>&theta;</sub>log &pi;<sub>&theta;</sub>(a<sub>t</sub>|s<sub>t</sub>) G<sub>t</sub>
+    ##### TODO
+
+    
+ - ### [REINFORCE](LINK)
+    ###### Overview
+    The REINFORCE (also known as Monte-Carlo policy gradient) method relies on an estimate returned by the Monte-Carlo method
+    using episode samples to update the policy parameter &theta;
+    Concept:
+    - Perform a trajectory rollout using the current policy &pi;&theta;
+    - Store the log probabilities and rewards for each time step in the rollout
+    - Calculate the discounted cumulative future reward for each time step
+    - Compute the policy gradient and update the policy parameter
+    - Repeat steps 1-4
+    ##### TODO
+
+ - ### [Deep Deterministic Policy Gradients](https://arxiv.org/abs/1509.02971)
+     ###### Overview
+     DDPG shares many commonalities with the DQN network, but is designed to accommodate continuous
+     action spaces. DDPG displays an actor-critic architecture, where the critic samples mini-batches 
+     of experience from a replay buffer to calculate a bootstrapped TD target for training the Q-function
+     off-policy, and the actor is trained on-policy to learn the optimal action
+     to take in a given state. 
+     
+     The major difference between the DQN and DDPG can be explained as follows. The DQN loss
+     function at each iteration can be describes as: 
+     
+     L<sub>t</sub> (&theta;<sub>t</sub>) = &expectation;<sub>(s,a,r,s')</sub>[(r + &gamma; Q(s', argmax<sub>a'</sub>Q(s', a'; &theta;<sup>-</sup>); &theta;<sup>-</sup> - Q(s, a; &theta;<sub>t</sub>)))<sup>2</sup>]
+     
+     which uses the argmax of the q-function of the next state to obtain the greedy action.
+     
+     In contrast, the DDPG loss at time step t is given by: 
+     
+     L<sub>t</sub> (&theta;<sub>t</sub>) = &expectation;<sub>(s,a,r,s')</sub>[(r + &gamma; Q(s', &mu;Q(s'; &phi;<sup>-</sup>); &theta;<sup>-</sup> - Q(s, a; &theta;<sub>t</sub>)))<sup>2</sup>]
+
+     Where the argmax has been replaced by a learned policy function &mu; parametrized by &phi;, which learns the deterministic greedy action
+     from the current state. Note that both actor and critic networks use the target-network approach as in DQN.
+     
+     The actor/policy network &mu;(-; &phi;<sub>t</sub>) is trained to find the action which maximizes the expected q-value, where
+     the loss is given by:
+     
+     J<sub>i</sub>(&phi;<sub>i</sub>) = &expectation;<sub>s</sub> [Q(s, &mu;(s; &phi;);&theta;)]
+     
+     Where the states s are sampled from the replay buffer, and in practice are the same states used to 
+     update the critic network.
+     
+     To allow for exploration with deterministic policies, we inject Gaussian noise into the actions selected by the policy.
+     
+     ###### Prioritized experience replay
+     As in DQN, we can replace the uniformly-sampled replay buffer with a prioritized replay buffer
+     
+     ###### [Twin Delayed DDPG (TD3)](https://arxiv.org/pdf/1802.09477.pdf)
+     The TD3 paper introduces a number of improvements to the classic TD3 algorithm which improve performance, given below:
+     - ###### Double Learning/ twin loss function
+        - This improvement splits the critic model into two separate and independent (unless weight sharing is used)
+          networks, where only the optimizer is shared, creating two separate estimates for the value of the state-action
+          pair. The joint loss function is computed as the sum of the MSEs of each of the two streams:
+          
+          J<sub>twin, t</sub> = J<sub>t</sub>(&theta;<sub>t</sub><sup>a</sup>) + J<sub>t</sub>(&theta;<sub>t</sub><sup>b</sup>)
+          
+          for the two streams a and b, with:
+          
+          J<sub>t</sub>(&theta;<sub>t</sub><sup>a</sup>) = &expectation;<sub>s, a, r, s'</sub>[(TWIN <sup>target</sup> - Q(s, a; &theta;<sub>t</sub><sup>a</sup>))<sup>2</sup>]
+          
+          J<sub>t</sub>(&theta;<sub>t</sub><sup>b</sup>) = &expectation;<sub>s, a, r, s'</sub>[(TWIN <sup>target</sup> - Q(s, a; &theta;<sub>t</sub><sup>b</sup>))<sup>2</sup>]
+          
+          TWIN <sup>target</sup> = r + &gamma; min<sub>n</sub> Q(s', &mu;(s';&phi;<sup>-</sup>); &theta;<sup>n, -</sup>) </br>
+         
+          where we use the target q-value is the minimum q-value obtained from the two streams, using target
+          networks for both policy and value network.
+     
+     - ###### Smoothing targets for policy updates
+        - In DDPG, Gaussian noise was added to the actions used for exploration. In TD3, this is extended by adding noise
+        to the actions used to calculate the targets, which can be seen as regularization as the network is forced to learn
+        similarities between actions, and helps especially during the beginning of learning where it is most likely for the
+        network to converge to incorrect actions.
+        
+        a<sup>',smooth</sup> = clamp(&mu;(s';&phi;<sup>-</sup>)) + clamp(&epsilon;, &epsilon;<sub>low</sub>, &epsilon;<sub>high</sub>), action<sub>low</sub>, action<sub>high</sub>)
+        
+        where clamp(x, l, h) = max(min(x, h), l) is the clamping function, &epsilon; is an array of Gaussian noise, and &epsilon;<sub>low/high</sub>
+        and  action<sub>low/high</sub> represent the minimum/maximum of the sampled noise and actions, respectively.
+        
+        The smooth TD target is then:
+        
+        TD3<sup>target</sup> = r + &gamma;min<sub>n</sub>Q(s', a<sup>', smooth</sup>; &theta;<sup>n, -</sup>)
+
+     - ###### Delaying policy updates
+        - The last TD3 improvement is to update the online Q-function at a higher frequency than both the policy network updates
+        and the soft-copying of target networks -> online networks. Delaying updates in this manner allows the value function
+        to stabilize into more accurate values prior to passing it to the policy network. The typical delay parameter used is
+        &tau;=2, meaning that the policy and target networks are updated every other update compared to the online Q-function.
+    

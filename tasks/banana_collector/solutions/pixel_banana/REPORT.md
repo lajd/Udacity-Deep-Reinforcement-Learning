@@ -81,7 +81,7 @@ The selected model configuration is as follows: </br>
 "NOISY": True,
 "BATCH_SIZE": 64,
 "GRAYSCALE": False,
-"N_FILTERS": (64, 128, 128),
+"FILTERS": (64, 128, 128),
 "KERNEL_SIZES": [(1, 8, 8), (1, 4, 4), (4, 3, 3)],
 "STRIDE_SIZES": [(1, 4, 4), (1, 2, 2), (1, 3, 3)],
 "OUTPUT_FC_HIDDEN_SIZES": (1024,),

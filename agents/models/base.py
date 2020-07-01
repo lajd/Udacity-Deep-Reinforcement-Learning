@@ -17,7 +17,6 @@ class BaseModel(torch.nn.Module):
         """ Generate the Q(state, a) for all possible actions a """
         return state
 
-    @abstractmethod
     def dist(self, state: torch.Tensor, act: bool = True) -> torch.Tensor:
         """ Generate a distribution of Q(state, a) """
         return state

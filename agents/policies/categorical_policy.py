@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from agents.policies.base import Policy
+from agents.policies.base_policy import Policy
 import torch.nn.functional as F
 from torch.autograd import Variable
 from tools.rl_constants import Action

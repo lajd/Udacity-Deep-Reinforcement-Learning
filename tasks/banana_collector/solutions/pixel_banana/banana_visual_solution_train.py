@@ -33,7 +33,7 @@ def get_solution_agent():
         "KERNEL_SIZES": [(1, 8, 8), (1, 4, 4), (4, 3, 3)],
         "STRIDE_SIZES": [(1, 4, 4), (1, 2, 2), (1, 3, 3)],
         "OUTPUT_FC_HIDDEN_SIZES": (1024,),
-        "WARMUP_STEPS": 5000,
+        "WARMUP_STEPS": 10000,
     }
 
     params.update(update_params)
@@ -82,8 +82,11 @@ if __name__ == '__main__':
 
     agent, params = get_solution_agent()
 
+    # Run warmup
+    simulator.warmup(agents=[agent], n_episodes=int(params['WARMUP_STEPS'] / params['MAX_T']), max_t=params['MAX_T'])
+
     # Run Training
-    agent, training_scores, i_episode, training_time = simulator.train(
+    agents, training_scores, i_episode, training_time = simulator.train(
         agents=[agent],
         max_t=params["MAX_T"],
         solved_score=SOLVED_SCORE,
@@ -98,4 +101,4 @@ if __name__ == '__main__':
     fig = scores.plot_scores(title_text=title_text)
 
     if training_scores.get_mean_sliding_scores() > SOLVED_SCORE:
-        agent.save(MODEL_SAVE_PATH)
+        agents[0].save(MODEL_SAVE_PATH)

@@ -12,6 +12,7 @@ from tools.misc import set_seed
 from agents.models.base import BaseModel
 from tools.rl_constants import Action
 from tools.misc import soft_update
+from tools.rl_constants import ExperienceBatch
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -34,7 +35,6 @@ class DQNAgent(Agent):
                  gamma: float = 0.95,
                  tau: float = 1e-3,
                  update_frequency: int = 5,
-                 warmup_steps: int = 0,
                  seed: int = None,
                  action_repeats: int = 1,
                  gradient_clip: float = 1
@@ -53,7 +53,6 @@ class DQNAgent(Agent):
             gamma: float = 0.95,
             tau: float = 1e-3,
             update_frequency: int = 5,
-            warmup_steps: int = 0,
             seed: int = None
         """
         super().__init__(
@@ -67,7 +66,6 @@ class DQNAgent(Agent):
         self.gamma = gamma
         self.tau = tau
         self.update_frequency = update_frequency
-        self.warmup_steps = warmup_steps
         self.gradient_clip = gradient_clip
 
         self.previous_action = None
@@ -117,17 +115,16 @@ class DQNAgent(Agent):
         self.memory.add(experience)
 
         # If enough samples are available in memory, get random subset and learn
-        if self.t_step > self.warmup_steps and self.t_step % self.update_frequency == 0 and len(self.memory) > self.batch_size:
-            state_frames, actions, rewards, next_state_frames, terminal, idxs, is_weights = self.memory.sample(self.batch_size)
-            experiences = (state_frames, actions, rewards, next_state_frames, terminal)
-            loss, errors = self.learn(experiences, self.gamma, sample_weights=is_weights)
+        if self.t_step % self.update_frequency == 0 and len(self.memory) > self.batch_size:
+            experience_batch = self.memory.sample(self.batch_size)
+            loss, errors = self.learn(experience_batch, self.gamma)
 
             with torch.no_grad():
                 if errors.min() < 0:
                     raise RuntimeError("Errors must be > 0, found {}".format(errors.min()))
 
                 priorities = errors.detach().cpu().numpy()
-                self.memory.update(idxs, priorities)
+                self.memory.update(experience_batch.sample_idxs, priorities)
 
             # Perform any post-backprop updates
             self.online_qnetwork.step()
@@ -151,10 +148,7 @@ class DQNAgent(Agent):
             # Run in evaluation mode
             action = self.policy.get_action(state=state, model=self.online_qnetwork)
         else:
-            if self.t_step < self.warmup_steps:
-                # Take a random action
-                action = Action(value=np.random.randint(0, self.action_size), distribution=None)
-            elif not self.previous_action or self.t_step % self.action_repeats == 0:
+            if not self.previous_action or self.t_step % self.action_repeats == 0:
                 # Get the action from the policy
                 action = self.policy.get_action(state=state, model=self.online_qnetwork)
                 self.previous_action = action
@@ -163,25 +157,26 @@ class DQNAgent(Agent):
                 action = self.previous_action
         return action
 
-    def learn(self, experiences: Tuple[np.array, ...], gamma: float, sample_weights: np.array) -> tuple:
+    def get_random_action(self, state: torch.Tensor):
+        action = Action(value=np.random.randint(0, self.action_size), distribution=None)
+        return action
+
+    def learn(self, experience_batch: ExperienceBatch, gamma: float) -> tuple:
         """Update value parameters using given batch of experience tuples and return TD error
 
         Args:
-            experiences (Tuple[np.array, ...]): Tuple of (states, actions, rewards, next_states, terminal)
+            experience_batch (ExperienceBatch): Minibatch of experience
             gamma (float): The discount factor to apply to future experiences
-            sample_weights (np.array): The weights to apply to each experience
 
         Returns:
             td_errors (torch.FloatTensor): The TD errors for each sample
         """
 
         # By default, calculate TD errors. Some DQN modifications (eg. categorical DQN) use custom errors/loss
-        assert sample_weights.min() >= 0, "Sample weights must be positive, {}".format(sample_weights.min())
         loss, errors = self.policy.compute_errors(
             self.online_qnetwork,
             self.target_qnetwork,
-            experiences,
-            error_weights=sample_weights,
+            experience_batch,
             gamma=gamma
         )
         assert errors.min() >= 0

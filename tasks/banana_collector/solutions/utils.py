@@ -3,11 +3,13 @@ from agents.policies.epsilon_greedy import EpsilonGreedyPolicy
 from agents.dqn_agent import DQNAgent
 from agents.policies.categorical_policy import CategoricalDQNPolicy
 from agents.policies.max_policy import MaxPolicy
-from agents.memory.prioritized_memory import PrioritizedMemory
+from agents.memory.prioritized_memory import ExtendedPrioritizedMemory
 from tools.parameter_decay import ParameterScheduler
 from unityagents import UnityEnvironment
 from simulation.unity_environment import UnityEnvironmentSimulator
 from os.path import join, dirname
+from tools.lr_schedulers import DummyLRScheduler
+
 
 ENVIRONMENTS_DIR = join(dirname(dirname(__file__)), 'environments')
 IMAGE_SHAPE = (84, 84, 3)
@@ -113,13 +115,12 @@ def get_policy(action_size: int, params):
 
 
 def get_memory(state_shape: tuple, params):
-    memory = PrioritizedMemory(
+    memory = ExtendedPrioritizedMemory(
         capacity=params['MEMORY_CAPACITY'],
         state_shape=state_shape,
         num_stacked_frames=params["NUM_STACKED_FRAMES"],
-        alpha_scheduler=ParameterScheduler(initial=0.6, lambda_fn=lambda i: 0.6),
-        beta_scheduler=ParameterScheduler(initial=0.4, final=1,
-                                          lambda_fn=lambda i: 0.4 + 0.6 * i / params["N_EPISODES"]),
+        alpha_scheduler=ParameterScheduler(initial=0.6, lambda_fn=lambda i: 0.6 - 0.6 * i / params['N_EPISODES'], final=0.0),
+        beta_scheduler=ParameterScheduler(initial=0.4, final=1, lambda_fn=lambda i: 0.4 + 0.6 * i / params["N_EPISODES"]),
         seed=params['SEED']
     )
     return memory
@@ -135,8 +136,7 @@ def get_agent(state_shape: tuple, action_size: int, model: torch.nn.Module, poli
         batch_size=params['BATCH_SIZE'],
         update_frequency=params['UPDATE_FREQUENCY'],
         gamma=params['GAMMA'],
-        warmup_steps=params['WARMUP_STEPS'],
-        lr_scheduler=torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=params['LR_GAMMA']),
+        lr_scheduler=DummyLRScheduler(optimizer),  # Using adam
         optimizer=optimizer,
         memory=memory,
         seed=params['SEED'],

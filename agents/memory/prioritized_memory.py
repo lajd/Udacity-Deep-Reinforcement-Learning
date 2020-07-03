@@ -47,10 +47,16 @@ class PrioritizedMemory:
     """ Memory buffer for storing and sampling experience
 
     Adapted from https://adventuresinmachinelearning.com/sumtree-introduction-python/
+
+
+    Limitations:
+        - Limited to a single stacked frame
+        - Does not efficiently store data (states/next states are repeated at the next time step)
+
+    To address limitations, use the ExtendedPrioritizedMemory class
     """
     def __init__(self, capacity: int, state_shape: tuple, beta_scheduler: ParameterScheduler, alpha_scheduler: ParameterScheduler,
-                 min_priority: float = 1e-3, num_stacked_frames: int = 1,
-                 seed: int = None, continuous_actions: bool = False, ):
+                 min_priority: float = 1e-3, seed: int = None, continuous_actions: bool = False, ):
         self.capacity = capacity
 
         self.state_shape = state_shape
@@ -68,7 +74,6 @@ class PrioritizedMemory:
         self.alpha = alpha_scheduler.initial
 
         self.min_priority = min_priority
-        self.num_stacked_frames = num_stacked_frames
 
         self.continuous_actions = continuous_actions
 
@@ -175,9 +180,9 @@ class PrioritizedMemory:
 
 class ExtendedPrioritizedMemory(PrioritizedMemory):
     def __init__(self, capacity: int, state_shape: tuple, beta_scheduler: ParameterScheduler, alpha_scheduler: ParameterScheduler,
-                 min_priority: float = 1e-7,
-                 seed: int = None, continuous_actions: bool = False, ):
+                 min_priority: float = 1e-7, seed: int = None, continuous_actions: bool = False, num_stacked_frames: int = 1):
         super().__init__(capacity, state_shape, beta_scheduler, alpha_scheduler, min_priority, seed, continuous_actions)
+        self.num_stacked_frames = num_stacked_frames
 
     def sample(self, num_samples: int, *args) -> ExperienceBatch:
         """Sample a batch of experience from the memory buffer
@@ -261,6 +266,7 @@ class ExtendedPrioritizedMemory(PrioritizedMemory):
         )
         experience_batch.to(device)
         return experience_batch
+
 
 class MemoryStreams:
     def __init__(self, stream_ids: List[str], capacity, state_shape, beta_scheduler, alpha_scheduler,

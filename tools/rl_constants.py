@@ -24,8 +24,13 @@ def ensure_tensors(*args):
 
 
 class Experience:
-    def __init__(self, state: torch.Tensor, action: torch.Tensor, reward: float, done: torch.Tensor, t_step: int, next_state: torch.Tensor=None):
-        state, action, done, next_state = ensure_tensors(state, action, done, next_state)
+    def __init__(self, state: torch.Tensor, action: torch.Tensor, reward: float, done: torch.Tensor,
+                 t_step: int, next_state: Optional[torch.Tensor] = None,
+                 joint_state: Optional[torch.Tensor] = None, joint_action: Optional[torch.Tensor] = None,
+                 joint_next_state: Optional[torch.Tensor] = None):
+        state, action, done, next_state, joint_state, joint_action = ensure_tensors(
+            state, action, done, next_state, joint_state, joint_action
+        )
         self.state = state
         self.action = action
         self.reward = reward
@@ -33,18 +38,21 @@ class Experience:
         self.t_step = t_step
         self.next_state = next_state
 
-    def cuda(self):
-        self.state = self.state.cuda()
-        self.action = self.action.cuda()
-        if self.next_state:
-            self.next_state = self.next_state.cuda()
+        self.joint_state = joint_state
+        self.joint_action = joint_action
+        self.joint_next_state = joint_next_state
+
+    def _get_tensor_attributes(self):
+        return {k: v for k, v in self.__dict__.items() if (not callable(v) and not k.startswith('_') and isinstance(v, torch.Tensor))}
+
+    def to(self, device: str):
+        for k, v in self._get_tensor_attributes().items():
+            setattr(self, k, v.to(device))
         return self
 
     def cpu(self):
-        self.state = self.state.cpu()
-        self.action = self.action.cpu()
-        if self.next_state is not None:
-            self.next_state = self.next_state.cpu()
+        for k, v in self._get_tensor_attributes().items():
+            setattr(self, k, v.cpu())
         return self
 
 
@@ -52,10 +60,11 @@ class ExperienceBatch:
     def __init__(self, states: torch.Tensor, actions: torch.Tensor,
                  rewards: torch.Tensor, dones: torch.Tensor, next_states: torch.Tensor,
                  sample_idxs: Optional[torch.Tensor] = None, memory_streams: Optional[List[str]] = None,
-                 is_weights: Optional[torch.FloatTensor] = None):
+                 is_weights: Optional[torch.FloatTensor] = None, joint_states: Optional[torch.FloatTensor] = None,
+                 joint_actions: Optional[torch.Tensor] = None, joint_next_states: Optional[torch.Tensor] = None):
 
-        states, actions, rewards, dones, next_states, sample_idxs, is_weights = ensure_tensors(
-            states, actions, rewards, dones, next_states, sample_idxs, is_weights
+        states, actions, rewards, dones, next_states, sample_idxs, is_weights, joint_states, joint_actions = ensure_tensors(
+            states, actions, rewards, dones, next_states, sample_idxs, is_weights, joint_states, joint_actions
         )
         self.states = states
         self.actions = actions
@@ -65,29 +74,25 @@ class ExperienceBatch:
         self.sample_idxs = sample_idxs
         self.memory_streams = memory_streams
         self.is_weights = is_weights
+        self.joint_states = joint_states
+        self.joint_actions = joint_actions
+        self.joint_next_states = joint_next_states
 
-    def to(self, device):
-        self.states = self.states.to(device)
-        self.actions = self.actions.to(device)
-        self.rewards = self.rewards.to(device)
-        self.dones = self.dones.to(device)
-        self.next_states = self.next_states.to(device)
-        if self.is_weights is not None:
-            self.is_weights = self.is_weights.to(device)
+    def _get_tensor_attributes(self):
+        return {k: v for k, v in self.__dict__.items() if (not callable(v) and not k.startswith('_') and isinstance(v, torch.Tensor))}
+
+    def to(self, device: torch.device):
+        for k, v in self._get_tensor_attributes().items():
+            setattr(self, k, v.to(device))
         return self
 
     def shuffle(self):
         # Add random permute
         r = torch.randperm(self.states.shape[0])
         self.memory_streams = [self.memory_streams[i] for i in r.tolist()]
-        self.states = self.states[r]
-        self.actions = self.actions[r]
-        self.rewards = self.rewards[r]
-        self.next_states = self.next_states[r]
-        self.dones = self.dones[r]
-        self.sample_idxs = self.sample_idxs[r]
-        if self.is_weights is not None:
-            self.is_weights = self.is_weights[r]
+
+        for k, v in self._get_tensor_attributes():
+            setattr(self, k, v[r])
 
     def get_norm_is_weights(self):
         if self.is_weights is None:

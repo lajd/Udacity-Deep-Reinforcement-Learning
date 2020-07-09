@@ -149,7 +149,8 @@ class PrioritizedMemory:
         is_weights = np.array(is_weights)
         is_weights = np.power(is_weights, - self.beta)
         # now load up the state and next state variables according to sampled idxs
-        states, next_states, actions, rewards, terminal = [], [], [], [], []
+        states, next_states, actions, rewards, terminal, joint_states, joint_next_states,\
+        joint_actions = [], [], [], [], [], [], [], []
 
         for idx in sampled_idxs:
             experience: Experience = self.buffer[idx]
@@ -160,6 +161,9 @@ class PrioritizedMemory:
             rewards.append(experience.reward)
             terminal.append(experience.done)
 
+            joint_states.append(experience.joint_state)
+            joint_actions.append(experience.joint_action)
+
         f = torch.FloatTensor if self.continuous_actions else torch.LongTensor
         experience_batch = ExperienceBatch(
             states=torch.stack(states).float(),
@@ -169,6 +173,9 @@ class PrioritizedMemory:
             dones=torch.LongTensor(terminal).view(num_samples, 1),
             sample_idxs=torch.LongTensor(sampled_idxs).view(num_samples, 1),
             is_weights=torch.from_numpy(is_weights).view(num_samples, 1).float(),
+            joint_states=torch.stack(joint_states).float(),
+            joint_next_states=torch.stack(joint_next_states).float(),
+            joint_actions=f(torch.stack(joint_actions)).view(num_samples, -1),
         )
         experience_batch.to(device)
         return experience_batch
@@ -234,9 +241,8 @@ class ExtendedPrioritizedMemory(PrioritizedMemory):
         is_weights = np.array(is_weights)
         is_weights = np.power(is_weights, - self.beta)
         # now load up the state and next state variables according to sampled idxs
-        states, next_states = [], []
-
-        actions, rewards, terminal = [], [], []
+        states, next_states, actions, rewards, terminal, joint_states, joint_actions, \
+            joint_next_states = [], [], [], [], [], [], [], []
 
         for idx in sampled_idxs:
             state_frames = torch.cat(
@@ -253,6 +259,9 @@ class ExtendedPrioritizedMemory(PrioritizedMemory):
             actions.append(experience_frame.action)
             rewards.append(experience_frame.reward)
             terminal.append(experience_frame.done)
+            joint_states.append(experience_frame.joint_state)
+            joint_actions.append(experience_frame.joint_action)
+            joint_next_states.append(experience_frame.joint_next_state)
 
         f = torch.FloatTensor if self.continuous_actions else torch.LongTensor
         experience_batch = ExperienceBatch(
@@ -263,6 +272,9 @@ class ExtendedPrioritizedMemory(PrioritizedMemory):
             dones=torch.LongTensor(terminal).view(num_samples, 1),
             sample_idxs=torch.LongTensor(sampled_idxs).view(num_samples, 1),
             is_weights=torch.from_numpy(is_weights).view(num_samples, 1).float(),
+            joint_states=torch.stack(joint_states).float(),
+            joint_actions=f(torch.stack(joint_actions)),
+            joint_next_states=torch.stack(joint_next_states).float(),
         )
         experience_batch.to(device)
         return experience_batch
@@ -275,7 +287,7 @@ class MemoryStreams:
         if seed:
             set_seed(seed)
         for s in stream_ids:
-            self.streams[s] = PrioritizedMemory(
+            self.streams[s] = ExtendedPrioritizedMemory(
                 capacity,
                 state_shape,
                 beta_scheduler,

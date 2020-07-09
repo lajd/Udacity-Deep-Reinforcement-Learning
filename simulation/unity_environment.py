@@ -19,6 +19,20 @@ warnings.filterwarnings("ignore")
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
+def default_step_agents_fn(states: np.ndarray, actions_list: list, rewards: np.ndarray,
+                              next_states: np.ndarray, dones: np.ndarray, time_step: int, agents: List[Agent], **kwargs):
+    """ Prepare experiences for the agents """
+    experiences = [Experience(
+            state=states[i], action=actions_list[i].value, reward=rewards[i],
+            next_state=next_states[i], done=dones[i], t_step=time_step
+        ) for i in range(len(agents))]
+
+    for i, e in enumerate(experiences):
+        agents[i].step(e)
+
+    return experiences
+
+
 class UnityEnvironmentSimulator:
     """ Helper class for training an agent in a Unity ML-Agents environment """
     def __init__(self, task_name: str, env: UnityEnvironment, observation_type: str, seed: int):
@@ -69,7 +83,7 @@ class UnityEnvironmentSimulator:
         states = np.array([preprocess_state_fn(i) for i in states])
         return torch.from_numpy(states).float().to(device)
 
-    def step(self, preprocess_state_fn: Callable, actions: List[Action]) -> Union[Environment, List[Environment]]:
+    def step(self, preprocess_state_fn: Callable, actions: List[Action], preprocess_actions_fn = lambda actions: actions) -> Union[Environment, List[Environment]]:
         """Push an action to the environment, receiving the next environment frame
 
         Args:
@@ -80,6 +94,8 @@ class UnityEnvironmentSimulator:
             environment (Environment): The next frame of the environment
         """
         actions = np.vstack([a.value for a in actions])
+        actions = preprocess_actions_fn(actions)
+
         brain_info = self.env.step(actions)[self.brain_name]
         next_states = self._get_state(brain_info)
         next_states = np.array([preprocess_state_fn(i) for i in next_states])
@@ -88,7 +104,11 @@ class UnityEnvironmentSimulator:
         return next_states, rewards, dones
 
     def train(self, agents: Union[Agent, List[Agent]], solved_score: Optional[float] = None,
-              n_episodes=2000, max_t=1000, sliding_window_size: int = 100
+              n_episodes=2000, max_t=1000, sliding_window_size: int = 100,
+              step_agents_fn=default_step_agents_fn,
+              reward_accumulation_fn=lambda rewards: rewards,
+              preprocess_actions_fn = lambda actions: actions,
+              get_actions_list_fn = lambda agents, states: [agent.get_action(state) for agent, state in zip(agents, states)]
               ) -> Tuple[List[Agent], Scores, int, float]:
         """Train the agent in the environment
 
@@ -99,7 +119,8 @@ class UnityEnvironmentSimulator:
             n_episodes (int): The number of episodes to train over
             max_t (int): The maximum number of timesteps allowed in each episode
             sliding_window_size (int): The number of historical scores to average over
-
+            step_agents_fn (Callable): Method for preparing experiences
+            reward_accumulation_fn (Callable):
         Returns:
             agent (Agent): The trained agent
             scores (Scores): Scores object containing all historic and sliding-window scores
@@ -117,22 +138,19 @@ class UnityEnvironmentSimulator:
             states = self.reset(preprocess_state_fn=preprocess_function, train_mode=True)
             episode_scores = np.zeros(len(agents))
             for t in range(max_t):
-                actions_list = [agent.get_action(state) for agent, state in zip(agents, states)]
-                next_states, rewards, dones = self.step(preprocess_state_fn=preprocess_function, actions=actions_list)
-                for i in range(len(agents)):
-                    e = Experience(
-                        state=states[i], action=actions_list[i].value, reward=rewards[i],
-                        next_state=next_states[i], done=dones[i], t_step=t
-                    )
-                    agents[i].step(e)
+                actions_list = get_actions_list_fn(agents, states)
+                # actions_list = [agent.get_action(state) for agent, state in zip(agents, states)]
+
+                next_states, rewards, dones = self.step(preprocess_state_fn=preprocess_function, actions=actions_list, preprocess_actions_fn=preprocess_actions_fn)
+
+                step_agents_fn(states, actions_list, rewards, next_states, dones, t, agents=agents)
+
                 next_states = torch.from_numpy(next_states).float().to(device)
                 states = next_states
-                episode_scores += rewards
-                if t % 20:
-                    print('\rTimestep {}\tScore: {:.2f}\tmin: {:.2f}\tmax: {:.2f}'
-                          .format(t, np.mean(episode_scores), np.min(episode_scores), np.max(episode_scores)), end="")
+                episode_scores += reward_accumulation_fn(rewards)
                 if np.any(dones):
                     break
+
             # Step the episode
             for agent in agents:
                 agent.step_episode(i_episode)
@@ -140,8 +158,11 @@ class UnityEnvironmentSimulator:
             episode_score = float(np.mean(episode_scores))
             self.training_scores.add(episode_score)
 
-            print('\rEpisode {}\tScore: {:.2f}\tAverage Score: {:.2f}'.format(i_episode, episode_score, self.training_scores.get_mean_sliding_scores()),
-                  end="\n")
+            if i_episode % 100 == 0:
+                end = '\n'
+            else:
+                end = ""
+            print('\rEpisode {}\tScore: {:.2f}\tAverage Score: {:.2f}'.format(i_episode, episode_score, self.training_scores.get_mean_sliding_scores()), end=end)
             if solved_score and self.training_scores.get_mean_sliding_scores() >= solved_score:
                 print("\nTotal Training time = {:.1f} min".format((time.time() - t_start) / 60))
                 print('\nEnvironment solved in {:d} episodes!\tAverage Score: {:.2f}'.format(i_episode, self.training_scores.get_mean_sliding_scores()))

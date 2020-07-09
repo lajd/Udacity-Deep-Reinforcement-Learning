@@ -308,4 +308,58 @@ Below, we discuss the algorithm at a high level, along with the implemented exte
         and the soft-copying of target networks -> online networks. Delaying updates in this manner allows the value function
         to stabilize into more accurate values prior to passing it to the policy network. The typical delay parameter used is
         &tau;=2, meaning that the policy and target networks are updated every other update compared to the online Q-function.
+
+ - ### [Multi-Agent DDPG (MADDPG)](https://arxiv.org/abs/1706.02275)
+    ###### Overview
+    The MADDPG algorithm attempts to address the challenges of implementing single-agent algorithms
+    in a multi-agent setting, which generally results in poor performance due to 1) the non stationarity of the environment
+    due to the presence of other agents, and 2) the exponential increase in state/action spaces resulting from modeling
+    multiple interacting agents (due to the curse of dimensionality). The MADDPG algorithm is an example of a class
+    of algorithms referred to as "centralized planning with decentralized execution".
+    
+    ###### Centralized Planning
+    The concept of centralized planning with decentralized execution involves having agents which only have access to local
+    (i.e. their own) observations, and during training all agent's policy updates are guided by the same (centralized)
+    critic, while during inference the centralized critic is removed and agents are guided only by their independently
+    learned policies. The centralized critic used during training encompasses information from all agents, alleviating
+    the non-stationarity of the environment. 
+
+    ###### Decentralized execution
+    During inference the centralized critic module is removed, forcing each agent to make decisions guided by local
+    observations and their individual policies. 
+    
+    ###### MADDPG Architecture
+    In the MADDPG framework, there are multiple agents, where each agent has a discrete observation space and a continuous
+    action space. Each agent has an online-actor, target-actor, and a critic which uses global information (states and actions
+    from all agents). If the agents are Homogeneous, the actor/target networks can be shared amongst agents
+    
+    ###### Learning algorithm
+    As in DDPG, MADDPG learns off-policy using an experience replay buffer, where experience is stored as a tuple
+    of all agents a<sub>1</sub>, ..., a<sub>N</sub>, state information <strong>x</strong>, <strong>x'</strong>
+    required for the update of the critic network, and the agent's rewards r<sub>1</sub>, ..., r<sub>N</sub> 
+    
+    (<strong>x</strong>, <strong>x'</strong>, a<sub>1</sub>, ..., a<sub>N</sub>, r<sub>1</sub>, ..., r<sub>N</sub> )
+    
+    ###### Critic update
+    In general, there may be N independent policies &mu;<sub>&theta;<sub>i</sub></sub> yielding a gradient of:
+    
+    &nabla;&theta;<sub>i</sub> J(&mu;<sub>i</sub>) = &expectation; <sub><strong>x</strong>, a ~ D</sub> [&nabla;<sub>&theta;<sub>i</sub></sub> &mu;<sub>i</sub>(a<sub>i</sub> | o<sub>i</sub>) &nabla;&theta;<sub>a<sub>i</sub></sub> Q<sub>i</sub><sup>&mu;</sup> (<strong>x</strong>, a<sub>1</sub>, ..., a<sub>n</sub> | a<sub>i</sub> = &mu;<sub>i</sub>(o<sub>i</sub>))]
+    
+    Where <strong>x</strong>, a are sampled from the replay buffer. The centralized action-value function Q<sub>i</sub> <sup>&mu;</sup> is then updated as:
+    
+    L(&theta;<sub>i</sub>) = &expectation;<sub><strong>x</strong>, a, r, <strong>x'</strong></sub> [(Q<sub>i</sub><sup>&mu;</sup> (<strong>x</strong>, a<sub>1</sub>, ..., a<sub>n</sub>) - y) <sup>2</sup>], 
+    
+    where y = r<sub>i</sub> + &gamma; Q<sub>i</sub><sup>&mu;'</sup> (<strong>x'</strong>, a<sub>1</sub>, ..., a<sub>n</sub>)                                                                
+    
+    ###### Actor update
+    
+    The actor update for MADDPG is the same as for DDPG, where each agent's actor &mu;<sub>i</sub> is updated as:
+    
+    &nabla;<sub>&theta;<sub>i</sub></sub> = &expectation; <sub><strong>x</strong>, a ~ D</sub> = [&nabla;<sub>&theta;<sub>i</sub></sub> &mu;<sub>i</sub>(a<sub>i</sub> | o<sub>i</sub>) &nabla;<sub>a<sub>i</sub></sub>Q<sub>i</sub><sup>&mu;</sup> (<strong>x</strong>, a<sub>1</sub>, ..., a<sub>n</sub>) | | a<sub>i</sub> = &mu;<sub>i</sub>(o<sub>i</sub>)]
+    
+    The actor's gradient, having access only to the agent's local observations, is scaled by the gradient of the critic 
+    which has access to global information, reducing the effects of non-stationarity
+    
+    ###### Policy inference
+    Rather than explicitly passing in the 
     

@@ -28,7 +28,8 @@ class HomogeneousMADDPGAgent:
     policy = None
 
     def __init__(self, policy, state_size, action_size, num_homogeneous_agents, seed, fc1=400, fc2=300, update_times=10,
-                 weight_decay=1.e-5, tau: float = 1e-3, batch_size: int = 512, num_learning_updates: int = 20):
+                 tau: float = 1e-2, batch_size: int = 512, num_learning_updates: int = 20,
+                 critic_grad_norm_clip: int = 1, policy_update_frequency: int = 1):
         """Initialize an Agent object.
 
         Params
@@ -49,8 +50,8 @@ class HomogeneousMADDPGAgent:
         self.batch_size = batch_size
         self.num_learning_updates = num_learning_updates
 
-        self.critic_grad_norm_clip = 1
-        self.policy_update_frequency = 1
+        self.critic_grad_norm_clip = critic_grad_norm_clip
+        self.policy_update_frequency = policy_update_frequency
 
         if HomogeneousMADDPGAgent.policy is None:
             HomogeneousMADDPGAgent.policy = policy

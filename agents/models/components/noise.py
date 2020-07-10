@@ -87,12 +87,12 @@ class OrnsteinUhlenbeckProcess(RandomProcess):
         self.dt = dt
         self.x0 = x0
         self.size = size
-        self.reset_states()
+        self.reset()
 
-    def sample(self):
+    def sample(self, *args):
         x = self.x_prev + self.theta * (self.mu - self.x_prev) * self.dt + self.std() * np.sqrt(self.dt) * np.random.randn(*self.size)
         self.x_prev = x
         return x
 
-    def reset_states(self):
+    def reset(self):
         self.x_prev = self.x0 if self.x0 is not None else np.zeros(self.size)

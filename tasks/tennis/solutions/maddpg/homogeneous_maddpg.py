@@ -6,6 +6,9 @@ from tools.rl_constants import Experience
 from tasks.tennis.solutions.utils import STATE_SIZE, ACTION_SIZE, NUM_AGENTS, get_simulator
 from agents.homogeneous_maddpg_agent import HomogeneousMADDPGAgent
 from tasks.tennis.solutions.maddpg import SOLUTIONS_CHECKPOINT_DIR
+from agents.policies.maddpg_policy import MADDPGPolicy
+from tools.misc import LinearSchedule
+from agents.models.components import noise as rm
 
 SAVE_TAG = 'homogeneous_maddpg_baseline'
 ACTOR_CHECKPOINT = os.path.join(SOLUTIONS_CHECKPOINT_DIR, f'{SAVE_TAG}_actor_checkpoint.pth')
@@ -42,9 +45,18 @@ def step_agents_fn(states: np.ndarray, actions_list: list, rewards: np.ndarray,
 if __name__ == '__main__':
     simulator = get_simulator()
 
+    noise_factory = lambda: rm.OrnsteinUhlenbeckProcess(size=(ACTION_SIZE,), std=LinearSchedule(0.4, 0, 2000))
+
+
+    policy = MADDPGPolicy(
+        noise_factory=noise_factory,
+        action_dim=ACTION_SIZE,
+        num_agents=NUM_AGENTS
+    )
+
     homogeneous_maddpg_agent = HomogeneousMADDPGAgent(
-        STATE_SIZE, ACTION_SIZE, num_homogeneous_agents=NUM_AGENTS,
-        fc1=400, fc2=300, seed=0, update_times=10
+        policy, STATE_SIZE, ACTION_SIZE, num_homogeneous_agents=NUM_AGENTS,
+        fc1=400, fc2=300, seed=0,
     )
 
     agents, training_scores, i_episode, training_time = simulator.train(

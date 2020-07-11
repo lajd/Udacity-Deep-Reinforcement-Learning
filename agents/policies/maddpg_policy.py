@@ -62,14 +62,15 @@ class MADDPGPolicy:
                 action = np.clip(actions.cpu().data.numpy(), -1, 1)  # epsilon greedy policy
         else:
             action = actions.cpu().data.numpy()
-        action = Action(value=action)
+        # action = Action(value=action)
         return action
 
     def get_random_action(self, *args):
         """ Get a random action (used for warmup) """
         uniform_distribution = torch.distributions.uniform.Uniform(*self.action_range)
         sample = uniform_distribution.sample((self.num_agents, self.action_dim))
-        return Action(value=sample)
+        return sample
+        # return Action(value=sample)
 
     def compute_actor_errors(self, experience_batch: ExperienceBatch, online_actor, target_actor, target_critic, online_critic) -> tuple:
         """ Compute the error and loss of the actor"""

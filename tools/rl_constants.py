@@ -1,7 +1,9 @@
 import torch
 from collections import namedtuple
-from typing import List, Union, Optional
+from typing import List, Union, Optional, Dict, Callable
 import numpy as np
+# from agents.base import Agent
+from tools.scores import Scores
 
 
 def ensure_tensors(*args):
@@ -118,3 +120,50 @@ class Trajectories:
 
 
 Environment = namedtuple("Environment", field_names=["next_state", "reward", "done"])
+
+
+class Brain:
+    def __init__(self, brain_name: str, action_size: int, state_shape: int, observation_type: str, num_agents: int, agent,
+                 preprocess_state_fn: Callable = lambda x: x, preprocess_actions_fn: Callable = lambda x: x):
+        self.brain_name = brain_name
+        self.action_size = action_size
+        self.state_shape = state_shape
+        self.num_agents = num_agents
+        self.observation_type = observation_type
+        self.agent = agent
+        self.agent_scores = [Scores() for _ in range(self.num_agents)]
+
+        self.preprocess_state_fn = preprocess_state_fn
+        self.preprocess_actions_fn = preprocess_actions_fn
+
+    def get_action(self, state: np.ndarray) -> Dict[str, np.ndarray]:
+        # select actions and send to environment
+        action = self.agent.get_action(state)
+        # actions = np.random.randint(self.action_size, size=self.num_agents)
+        return {self.brain_name: action}
+
+
+class BrainSet:
+    def __init__(self, brains: List[Brain]):
+        self.brain_map = {brain.brain_name: brain for brain in brains}
+
+    def get_actions(self, brain_states):
+        brain_actions = {}
+        for brain_name, state in brain_states.items():
+            brain_actions.update(self.brain_map[brain_name].get_action(state))
+        return brain_actions
+
+    def brains(self):
+        for b in self.brain_map.values():
+            yield b
+
+    def names(self):
+        for n in self.brain_map:
+            yield n
+
+    def __getitem__(self, brain_name: str):
+        return self.brain_map[brain_name]
+
+    def __iter__(self):
+        for brain_name, brain in self.brain_map.items():
+            yield brain_name, brain

@@ -46,9 +46,11 @@ class Memory:
         joint_actions = torch.from_numpy(np.vstack([e.joint_action for e in experiences if e is not None])).float().to(device)
         joint_next_states = torch.from_numpy(np.vstack([e.joint_next_state for e in experiences if e is not None])).float().to(device)
 
-        return ExperienceBatch(states=states, actions=actions, rewards=rewards, next_states=next_states,
-                               dones=dones, joint_states=joint_states, joint_actions=joint_actions, joint_next_states=joint_next_states
-                               )
+        return ExperienceBatch(
+            states=states, actions=actions, rewards=rewards, next_states=next_states,
+            dones=dones, joint_states=joint_states, joint_actions=joint_actions,
+            joint_next_states=joint_next_states
+        )
 
     def __len__(self):
         """Return the current size of internal memory."""

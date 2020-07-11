@@ -1,5 +1,6 @@
 from unityagents import UnityEnvironment
 import numpy as np
+from tools.rl_constants import Brain
 
 env = UnityEnvironment(file_name="/home/jon/PycharmProjects/drl_toolbox/tasks/soccer/environments/Soccer_Linux/Soccer.x86_64")
 
@@ -38,10 +39,26 @@ s_states = env_info[s_brain_name].vector_observations
 s_state_size = s_states.shape[1]
 print('There are {} striker agents. Each receives a state with length: {}'.format(s_states.shape[0], s_state_size))
 
+striker_brain = Brain(
+    brain_name=g_brain_name,
+    action_size=g_action_size,
+    state_shape=g_action_size,
+    observation_type='vector',
+    agents=[]
+)
+
+goalie_brain = Brain(
+    brain_name=s_brain_name,
+    action_size=s_action_size,
+    state_shape=s_action_size,
+    observation_type='vector',
+    agents=[]
+)
+
+
 for i in range(2):  # play game for 2 episodes
     env_info = env.reset(train_mode=False)  # reset the environment
-    g_states = env_info[g_brain_name].vector_observations  # get initial state (goalies)
-    s_states = env_info[s_brain_name].vector_observations  # get initial state (strikers)
+
     g_scores = np.zeros(num_g_agents)  # initialize the score (goalies)
     s_scores = np.zeros(num_s_agents)  # initialize the score (strikers)
     while True:

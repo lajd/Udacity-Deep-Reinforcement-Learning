@@ -6,6 +6,7 @@ from torch import nn
 from copy import deepcopy
 from tasks.banana_collector.solutions.utils import default_cfg, get_policy, get_memory, get_agent, VECTOR_STATE_SHAPE, ACTION_SIZE, get_simulator
 from tools.scores import Scores
+from tools.rl_constants import Experience, Brain, BrainSet
 
 SEED = default_cfg['SEED']
 SOLVED_SCORE = 13.0

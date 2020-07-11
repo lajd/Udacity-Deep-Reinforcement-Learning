@@ -153,6 +153,12 @@ class BrainSet:
             brain_actions.update(self.brain_map[brain_name].get_action(state))
         return brain_actions
 
+    def get_random_actions(self, brain_states):
+        brain_actions = {}
+        for brain_name, state in brain_states.items():
+            brain_actions.update(self.brain_map[brain_name].get_action(state))
+        return brain_actions
+
     def brains(self):
         for b in self.brain_map.values():
             yield b

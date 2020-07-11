@@ -111,8 +111,12 @@ class UnityEnvironmentSimulator:
     #     states = np.array([preprocess_state_fn(i) for i in states])
     #     return torch.from_numpy(states).float().to(device)
 
-    def step(self, brain_set: BrainSet, brain_states: dict):
-        brain_actions = brain_set.get_actions(brain_states)
+    def step(self, brain_set: BrainSet, brain_states: dict, random_actions: bool = False):
+
+        if random_actions:
+            brain_actions = brain_set.get_random_actions(brain_states)
+        else:
+            brain_actions = brain_set.get_actions(brain_states)
 
         actions = deepcopy(brain_actions)
         self.env_info = self.env.step(actions)
@@ -181,47 +185,19 @@ class UnityEnvironmentSimulator:
         for i_episode in range(1, n_episodes + 1):
             self.reset_env(train_mode=True)
             brain_states = self.get_next_states(brain_set)
-            # states = self.reset(preprocess_state_fn=pre, train_mode=True)
-            # episode_scores = np.zeros(len(agents))
+
             brain_episode_scores = {brain_name:  np.zeros(brain.num_agents) for brain_name, brain in brain_set}
-            # for brain_name in brain_set.brains:
-            #     episode_scores[brain_name] =
 
             for t in range(max_t):
-                # actions_list = get_actions_list_fn(agents, states)
-                # actions_list = [agent.get_action(state) for agent, state in zip(agents, states)]
-
-                # next_states, rewards, dones = self.step(preprocess_state_fn=preprocess_function, actions=actions_list, preprocess_actions_fn=preprocess_actions_fn)
                 next_brain_environment = self.step(brain_set=brain_set, brain_states=brain_states)
-                # next_states, rewards, dones = self.step(brain_set=brain_set, brain_actions_dict=brain_actions)
-
                 step_agents_fn(brain_set, next_brain_environment, t)
-
-                # step_agents_fn(states, actions_list, rewards, next_states, dones, t, agents=agents)
-                # for brain_name, brain_environment in next_brain_environment.items():
-                #     for i in range(brain_set[brain_name].num_agents):
-                #         brain_agent_experience = Experience(
-                #                 state=brain_environment['states'][i],
-                #                 action=brain_environment['actions'][i],
-                #                 reward=brain_environment['rewards'][i],
-                #                 next_state=brain_environment['next_states'][i],
-                #                 done=brain_environment['dones'][i],
-                #                 t_step=t,
-                #         )
-                #         brain_set[brain_name].agent.step(brain_agent_experience)
-
                 brain_states = {
                     brain_name: next_brain_environment[brain_name]['next_states']
                     for brain_name in brain_states
                 }
-                # next_brain_states
-                # next_states = torch.from_numpy(next_states).float().to(device)
-                # states = next_states
-
                 for brain_name in brain_episode_scores:
                     brain_episode_scores[brain_name] += reward_accumulation_fn(next_brain_environment[brain_name]['rewards'])
 
-                # episode_scores += reward_accumulation_fn(rewards)
                 end_episode = False
                 for brain_name in brain_set.names():
                     if np.any(next_brain_environment[brain_name]['dones']):
@@ -233,15 +209,8 @@ class UnityEnvironmentSimulator:
             for _, brain in brain_set:
                 brain.agent.step_episode(i_episode)
 
-            # # Step the episode
-            # for agent in agents:
-            #     agent.step_episode(i_episode)
-            # for brain_name in brain_episode_scores:
             episode_aggregated_score = float(np.mean([np.mean(brain_episode_scores[brain_name]) for brain_name in brain_episode_scores]))
             self.training_scores.add(episode_aggregated_score)
-
-            # episode_score = float(np.mean(episode_scores))
-            # self.training_scores.add(episode_score)
 
             if i_episode % 100 == 0:
                 end = '\n'
@@ -256,26 +225,31 @@ class UnityEnvironmentSimulator:
 
         return brain_set, self.training_scores, i_episode, training_time
 
-    def warmup(self, brain_set: BrainSet, n_episodes: int, max_t: int):
+    def warmup(self, brain_set: BrainSet, step_agents_fn: Callable, n_episodes: int, max_t: int):
         print("Performing warmup with {} episodes and max_t={}".format(n_episodes, max_t))
-        # for agent in agents:
-        #     agent.set_mode('eval')
         for brain in brain_set.brains():
             brain.agent.set_mode('train')
 
         t1 = time.time()
         for i_episode in range(1, n_episodes + 1):
-            # preprocess_state_fn = agents[0].preprocess_state
-            # states = self.reset(preprocess_state_fn=preprocess_state_fn, train_mode=True)  # Train mode --> faster
             self.reset_env(train_mode=True)
             brain_states = self.get_next_states(brain_set)
-
             for t in range(max_t):
-                actions_list = [agent.get_random_action(state) for agent, state in zip(agents, states)]
-                next_states, _, dones = self.step(preprocess_state_fn=preprocess_state_fn, actions=actions_list)
-                states = torch.from_numpy(next_states).float().to(device)
-                if np.any(dones):
+                next_brain_environment = self.step(brain_set=brain_set, brain_states=brain_states, random_actions=True)
+                step_agents_fn(brain_set, next_brain_environment, t)
+                brain_states = {
+                    brain_name: next_brain_environment[brain_name]['next_states']
+                    for brain_name in brain_states
+                }
+
+                end_episode = False
+                for brain_name in brain_set.names():
+                    if np.any(next_brain_environment[brain_name]['dones']):
+                        end_episode = True
+
+                if end_episode:
                     break
+
                 print('\rEpisode {}\tTimestep: {:.2f}'.format(i_episode, t), end="")
         print("Finished warmup in {}s".format(round(time.time() - t1)))
 

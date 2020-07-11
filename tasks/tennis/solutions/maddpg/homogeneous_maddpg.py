@@ -19,27 +19,8 @@ TRAINING_SCORES_SAVE_PATH = os.path.join(SOLUTIONS_CHECKPOINT_DIR, f'{SAVE_TAG}_
 NUM_EPISODES = 1000
 MAX_T = 1000
 SOLVE_SCORE = 2
+WARMUP_STEPS = 5000
 
-
-# def step_agents_fn(states: np.ndarray, actions_list: list, rewards: np.ndarray,
-#                    next_states: np.ndarray, dones: np.ndarray, time_step: int, agents):
-#     """ Prepare experiences for the agents """
-#
-#     if isinstance(states, np.ndarray):
-#         states = torch.from_numpy(states)
-#
-#     for i in range(NUM_AGENTS):
-#         all_states = torch.cat((states[i], states[1 - i]))
-#         all_actions = np.concatenate((actions_list[0].value[i], actions_list[0].value[1 - i]))
-#         all_next_state = np.concatenate((next_states[i], next_states[1 - i]))
-#
-#         experience = Experience(
-#             state=states[i], joint_state=all_states, action=actions_list[0].value[i], joint_action=all_actions,
-#             reward=rewards[i],
-#             next_state=next_states[i], joint_next_state=all_next_state, done=dones[i], t_step=time_step
-#         )
-#
-#         agents[0].step(experience)
 
 def step_agents_fn(brain_set: BrainSet, next_brain_environment: dict, t: int):
     for brain_name, brain_environment in next_brain_environment.items():
@@ -88,6 +69,8 @@ if __name__ == '__main__':
     )
 
     brain_set = BrainSet(brains=[tennis_brain])
+
+    simulator.warmup(brain_set, step_agents_fn=step_agents_fn, n_episodes=int(WARMUP_STEPS / MAX_T), max_t=MAX_T)
 
     brain_set, training_scores, i_episode, training_time = simulator.train(
         brain_set,

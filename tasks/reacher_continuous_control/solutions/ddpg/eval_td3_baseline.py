@@ -33,7 +33,7 @@ ACTOR_CHECKPOINT = os.path.join(SOLUTIONS_CHECKPOINT_DIR, f'{SAVE_TAG}_actor_che
 CRITIC_CHECKPOINT = os.path.join(SOLUTIONS_CHECKPOINT_DIR, f'{SAVE_TAG}_critic_checkpoint.pth')
 
 
-def get_solution_agent(actor_network: torch.nn.Module, critic_network: torch.nn.Module):
+def get_solution_brain_set(actor_network: torch.nn.Module, critic_network: torch.nn.Module):
     return DDPGAgent(
         state_size=STATE_SIZE,
         action_size=ACTION_SIZE,
@@ -65,6 +65,6 @@ if __name__ == '__main__':
 
     simulator = get_simulator()
 
-    agents = [get_solution_agent(actor, critic) for _ in range(NUM_AGENTS)]
+    agents = [get_solution_brain_set(actor, critic) for _ in range(NUM_AGENTS)]
 
     agents, average_score = simulator.evaluate(agents, n_episodes=1, max_t=MAX_T)

@@ -36,11 +36,6 @@ class Agent(torch.nn.Module):
         return state
 
     @abstractmethod
-    def save(self, *args, **kwargs) -> dict:
-        """Save the agent model"""
-        pass
-
-    @abstractmethod
     def load(self, *args, **kwargs):
         """ Load the agent model """
         pass

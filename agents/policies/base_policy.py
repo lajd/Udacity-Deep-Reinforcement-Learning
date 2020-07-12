@@ -30,15 +30,15 @@ class Policy:
         pass
 
     @abstractmethod
-    def get_action(self, state: np.array, model: torch.nn.Module) -> Action:
+    def get_action(self, state: np.array, model: torch.nn.Module) -> np.ndarray:
         pass
 
     @abstractmethod
-    def get_random_action(self, *args):
+    def get_random_action(self, *args) -> np.ndarray:
         pass
 
     # Acts with an ε-greedy policy (used for evaluation)
-    def get_action_e_greedy(self, state: np.array, model: torch.nn.Module, epsilon=0.001) -> Action:  # High ε can reduce evaluation scores drastically
+    def get_action_e_greedy(self, state: np.array, model: torch.nn.Module, epsilon=0.001) -> np.ndarray:  # High ε can reduce evaluation scores drastically
         if np.random.random() < epsilon:
             action = Action(value=np.random.choice(self.actions), distribution=None)
         else:

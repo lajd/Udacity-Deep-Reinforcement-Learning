@@ -14,9 +14,9 @@ def ensure_tensors(*args):
         elif not isinstance(a, torch.Tensor):
             if isinstance(a, np.ndarray):
                 outp.append(torch.from_numpy(a))
-            elif isinstance(a, bool) or isinstance(a, int):
+            elif isinstance(a, (bool, np.bool)) or isinstance(a, (int, np.int, np.int64)):
                 outp.append(torch.LongTensor([a]))
-            elif isinstance(a, float):
+            elif isinstance(a, (float, np.float)):
                 outp.append(torch.FloatTensor([a]))
             else:
                 raise ValueError("Unexpected type {}".format(type(a)))

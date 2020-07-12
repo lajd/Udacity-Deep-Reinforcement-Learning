@@ -161,8 +161,12 @@ class PrioritizedMemory:
             rewards.append(experience.reward)
             terminal.append(experience.done)
 
-            joint_states.append(experience.joint_state)
-            joint_actions.append(experience.joint_action)
+            if experience.joint_state is not None:
+                joint_states.append(experience.joint_state)
+            if experience.joint_action is not None:
+                joint_actions.append(experience.joint_action)
+            if experience.joint_next_state is not None:
+                joint_next_states.append(experience.joint_next_state)
 
         f = torch.FloatTensor if self.continuous_actions else torch.LongTensor
         experience_batch = ExperienceBatch(
@@ -173,10 +177,11 @@ class PrioritizedMemory:
             dones=torch.LongTensor(terminal).view(num_samples, 1),
             sample_idxs=torch.LongTensor(sampled_idxs).view(num_samples, 1),
             is_weights=torch.from_numpy(is_weights).view(num_samples, 1).float(),
-            joint_states=torch.stack(joint_states).float(),
-            joint_next_states=torch.stack(joint_next_states).float(),
-            joint_actions=f(torch.stack(joint_actions)).view(num_samples, -1),
+            joint_states=None if len(joint_states) == 0 else torch.stack(joint_states).float(),
+            joint_actions=None if len(joint_actions) == 0 else f(torch.stack(joint_actions)),
+            joint_next_states=None if len(joint_next_states) == 0 else torch.stack(joint_next_states).float(),
         )
+
         experience_batch.to(device)
         return experience_batch
 
@@ -259,9 +264,13 @@ class ExtendedPrioritizedMemory(PrioritizedMemory):
             actions.append(experience_frame.action)
             rewards.append(experience_frame.reward)
             terminal.append(experience_frame.done)
-            joint_states.append(experience_frame.joint_state)
-            joint_actions.append(experience_frame.joint_action)
-            joint_next_states.append(experience_frame.joint_next_state)
+
+            if experience_frame.joint_state is not None:
+                joint_states.append(experience_frame.joint_state)
+            if experience_frame.joint_action is not None:
+                joint_actions.append(experience_frame.joint_action)
+            if experience_frame.joint_next_state is not None:
+                joint_next_states.append(experience_frame.joint_next_state)
 
         f = torch.FloatTensor if self.continuous_actions else torch.LongTensor
         experience_batch = ExperienceBatch(
@@ -272,9 +281,9 @@ class ExtendedPrioritizedMemory(PrioritizedMemory):
             dones=torch.LongTensor(terminal).view(num_samples, 1),
             sample_idxs=torch.LongTensor(sampled_idxs).view(num_samples, 1),
             is_weights=torch.from_numpy(is_weights).view(num_samples, 1).float(),
-            joint_states=torch.stack(joint_states).float(),
-            joint_actions=f(torch.stack(joint_actions)),
-            joint_next_states=torch.stack(joint_next_states).float(),
+            joint_states=None if len(joint_states) == 0 else torch.stack(joint_states).float(),
+            joint_actions=None if len(joint_actions) == 0 else f(torch.stack(joint_actions)),
+            joint_next_states=None if len(joint_next_states) == 0 else torch.stack(joint_next_states).float(),
         )
         experience_batch.to(device)
         return experience_batch

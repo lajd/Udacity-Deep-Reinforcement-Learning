@@ -86,9 +86,6 @@ class DQNAgent(Agent):
             self.online_qnetwork.set_seed(seed)
             self.target_qnetwork.set_seed(seed)
 
-    def save(self, save_pth: str):
-        torch.save(self.online_qnetwork.state_dict(), save_pth)
-
     def load(self, path_to_online_network_pth: str):
         assert os.path.exists(path_to_online_network_pth), "Path does not exist"
         self.online_qnetwork.load_state_dict(torch.load(path_to_online_network_pth))
@@ -132,7 +129,7 @@ class DQNAgent(Agent):
 
             self.param_capture.add('loss', loss)
 
-    def get_action(self, state: torch.Tensor) -> Action:
+    def get_action(self, state: torch.Tensor) -> np.ndarray:
         """Returns actions for given state as per current policy.
 
         Args:

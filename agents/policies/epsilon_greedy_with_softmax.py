@@ -23,7 +23,7 @@ class EpsilonGreedySoftmaxPolicy(Policy):
         self.epsilon = self.epsilon_scheduler.get_param(episode_number)
         return True
 
-    def get_action(self, state: np.array, model: torch.nn.Module) -> Action:
+    def get_action(self, state: np.array, model: torch.nn.Module) -> np.ndarray:
         """ Implement this function for speed"""
 
         def _get_action_values():
@@ -36,16 +36,19 @@ class EpsilonGreedySoftmaxPolicy(Policy):
         if self.train:
             action_values_ = _get_action_values()
             if random.random() > self.epsilon:
-                action = Action(value=int(action_values_.max(1)[1].data[0]), distribution=None)
+                action = action_values_.max(1)[1].data[0]
+                # action = Action(value=int(action_values_.max(1)[1].data[0]), distribution=None)
                 return action
             else:
                 probs = torch.nn.functional.softmax(action_values_)
-                value = int(np.random.choice(np.arange(0, self.action_size), p=probs.view(-1).numpy()))
-                action = Action(value=value, distribution=probs.data.cpu().numpy())
+                action = np.random.choice(np.arange(0, self.action_size), p=probs.view(-1).numpy())
+                # value = int(np.random.choice(np.arange(0, self.action_size), p=probs.view(-1).numpy()))
+                # action = Action(value=value, distribution=probs.data.cpu().numpy())
                 return action
         else:
             action_values_ = _get_action_values()
-            action = Action(value=int(action_values_.max(1)[1].data[0]), distribution=None)
+            action = action_values_.max(1)[1].data[0]
+            # action = Action(value=int(action_values_.max(1)[1].data[0]), distribution=None)
             return action
 
     def get_deterministic_policy(self, state_action_values_dict: dict):

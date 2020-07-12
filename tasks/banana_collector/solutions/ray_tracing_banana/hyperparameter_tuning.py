@@ -7,7 +7,8 @@ from ax import optimize
 import os
 import pickle
 import ast
-from tasks.banana_collector.solutions.utils import default_cfg, get_policy, get_memory, get_agent, ACTION_SIZE, VECTOR_STATE_SHAPE, get_simulator
+from tasks.banana_collector.solutions.utils import default_cfg, get_policy, get_memory, get_agent, ACTION_SIZE, VECTOR_STATE_SHAPE, get_simulator, BRAIN_NAME
+from tools.rl_constants import BrainSet, Brain
 
 TRIAL_COUNTER = 0
 NUM_TRIALS = 500
@@ -63,9 +64,20 @@ def banana_tuning(update_params: dict):
 
         agent = get_agent(VECTOR_STATE_SHAPE, ACTION_SIZE, model, policy, memory, optimizer, params)
 
+        banana_brain_ = Brain(
+            brain_name=BRAIN_NAME,
+            action_size=ACTION_SIZE,
+            state_shape=VECTOR_STATE_SHAPE,
+            observation_type='vector',
+            agent=agent,
+            num_agents=1
+        )
+
+        brain_set = BrainSet(brains=[banana_brain_])
+
         # Run performance evaluation
         performance, info = simulator.get_agent_performance(
-            agents=[agent],
+            brain_set=brain_set,
             n_train_episodes=params["N_EPISODES"],
             n_eval_episodes=params["N_EVAL_EPISODES"],
             max_t=params["MAX_T"],

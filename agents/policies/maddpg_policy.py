@@ -42,7 +42,7 @@ class MADDPGPolicy:
         for i in range(self.num_agents):
             self.agent_noise[i].reset()
 
-    def get_action(self, state: torch.Tensor, online_actor: torch.nn.Module, with_noise: bool = True, training: bool = False):
+    def get_action(self, state: torch.Tensor, online_actor: torch.nn.Module, with_noise: bool = True, training: bool = False) -> np.ndarray:
         """Returns actions for given state as per current policy."""
         assert state.shape[0] == self.num_agents, state.shape[0]
 
@@ -65,7 +65,7 @@ class MADDPGPolicy:
         # action = Action(value=action)
         return action
 
-    def get_random_action(self, *args):
+    def get_random_action(self, *args) -> np.ndarray:
         """ Get a random action (used for warmup) """
         uniform_distribution = torch.distributions.uniform.Uniform(*self.action_range)
         sample = uniform_distribution.sample((self.num_agents, self.action_dim))

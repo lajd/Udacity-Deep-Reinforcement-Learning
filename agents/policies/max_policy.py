@@ -15,11 +15,12 @@ class MaxPolicy(Policy):
         if seed:
             self.set_seed(seed)
 
-    def get_action(self, state: np.array, model: torch.nn.Module) -> Action:
+    def get_action(self, state: np.array, model: torch.nn.Module) -> np.ndarray:
         model.eval()
         with torch.no_grad():
             action_values = model.forward(state, act=True)
         model.train()
 
-        action = Action(value=int(action_values.max(1)[1].data[0]), distribution=None)
+        action = action_values.max(1)[1].data[0]
+        # action = Action(value=int(action_values.max(1)[1].data[0]), distribution=None)
         return action

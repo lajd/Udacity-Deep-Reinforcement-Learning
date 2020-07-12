@@ -1,4 +1,5 @@
 import os
+from os.path import join
 import pickle
 import numpy as np
 import torch
@@ -11,9 +12,9 @@ from tools.misc import LinearSchedule
 from agents.models.components import noise as rm
 
 SAVE_TAG = 'homogeneous_maddpg_baseline'
-ACTOR_CHECKPOINT = os.path.join(SOLUTIONS_CHECKPOINT_DIR, f'{SAVE_TAG}_actor_checkpoint.pth')
-CRITIC_CHECKPOINT = os.path.join(SOLUTIONS_CHECKPOINT_DIR, f'{SAVE_TAG}_critic_checkpoint.pth')
-TRAINING_SCORES_SAVE_PATH = os.path.join(SOLUTIONS_CHECKPOINT_DIR, f'{SAVE_TAG}_training_scores.pkl')
+ACTOR_CHECKPOINT_FN = lambda brain_name: join(SOLUTIONS_CHECKPOINT_DIR, f'{brain_name}_{SAVE_TAG}_actor_checkpoint.pth')
+CRITIC_CHECKPOINT_FN = lambda brain_name: join(SOLUTIONS_CHECKPOINT_DIR, f'{brain_name}_{SAVE_TAG}_critic_checkpoint.pth')
+TRAINING_SCORES_SAVE_PATH_FN = lambda brain_name: join(SOLUTIONS_CHECKPOINT_DIR, f'{brain_name}_{SAVE_TAG}_training_scores.pkl')
 
 
 NUM_EPISODES = 1000
@@ -83,9 +84,10 @@ if __name__ == '__main__':
         get_actions_list_fn=lambda agents, states: [agents[0].get_action(states)]
     )
 
-    # if training_scores.get_mean_sliding_scores() > SOLVE_SCORE:
-    #     trained_agent = agents[0]
-    #     torch.save(trained_agent.online_actor.state_dict(), ACTOR_CHECKPOINT)
-    #     torch.save(trained_agent.online_critic.state_dict(), CRITIC_CHECKPOINT)
-    #     with open(TRAINING_SCORES_SAVE_PATH, 'wb') as f:
-    #         pickle.dump(training_scores, f)
+    if training_scores.get_mean_sliding_scores() > SOLVE_SCORE:
+        for brain_name, brain in brain_set:
+            trained_agent = brain.agent
+            torch.save(trained_agent.online_actor.state_dict(), ACTOR_CHECKPOINT_FN(brain_name))
+            torch.save(trained_agent.online_critic.state_dict(), CRITIC_CHECKPOINT_FN(brain_name))
+            with open(TRAINING_SCORES_SAVE_PATH_FN(brain_name), 'wb') as f:
+                pickle.dump(training_scores, f)

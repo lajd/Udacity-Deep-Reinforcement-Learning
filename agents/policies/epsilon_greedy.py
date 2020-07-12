@@ -30,22 +30,20 @@ class EpsilonGreedyPolicy(Policy):
         self.epsilon = self.epsilon_scheduler.get_param(episode_number)
         return True
 
-    def get_action(self, state: np.array, model: torch.nn.Module) -> Action:
+    def get_action(self, state: np.array, model: torch.nn.Module) -> np.ndarray:
         def _get_greedy_action():
             model.eval()
             with torch.no_grad():
                 action_values = model.forward(state, act=True)
-                selcted_action_ = int(action_values.max(1)[1].data[0])
+                action_ = action_values.max(1)[1].cpu().numpy()
             model.train()
-            action_ = Action(value=selcted_action_, distribution=None)
             return action_
 
         if self.train:
             if random.random() > self.epsilon:
                 return _get_greedy_action()
             else:
-                selcted_action = int(torch.randint(0, self.action_size, (1,)))
-                action = Action(value=selcted_action, distribution=None)
+                action = torch.randint(0, self.action_size, (1,)).numpy()
                 return action
         else:
             return _get_greedy_action()

@@ -17,7 +17,7 @@ PLOT_SAVE_PATH = join(SOLUTION_CHECKPOINT_DIR, 'visual_agent_banana_solution.png
 os.makedirs(SOLUTION_CHECKPOINT_DIR, exist_ok=True)
 
 
-def get_solution_agent():
+def get_solution_brain_set():
     # Define the solution hyper parameters
     params = deepcopy(default_cfg)
 
@@ -80,7 +80,7 @@ if __name__ == '__main__':
     # Initialize the simulator
     simulator = get_simulator(visual=True)
 
-    agent, params = get_solution_agent()
+    agent, params = get_solution_brain_set()
 
     # Run warmup
     simulator.warmup(agents=[agent], n_episodes=int(params['WARMUP_STEPS'] / params['MAX_T']), max_t=params['MAX_T'])

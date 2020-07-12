@@ -1,9 +1,7 @@
 import numpy as np
 import torch
 from agents.policies.base_policy import Policy
-import torch.nn.functional as F
-from torch.autograd import Variable
-from tools.rl_constants import Action
+from tools.rl_constants import ExperienceBatch
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -25,13 +23,12 @@ class CategoricalDQNPolicy(Policy):
         if seed:
             self.set_seed(seed)
 
-    def get_action(self, state: np.array, model: torch.nn.Module) -> Action:
+    def get_action(self, state: np.array, model: torch.nn.Module) -> np.ndarray:
         """ Implement this function for speed"""
         model.eval()
         with torch.no_grad():
             selected_action = model(state, act=True).argmax()
-            selected_action = int(selected_action.detach().cpu().numpy())
-            action = Action(value=selected_action, distribution=None)
+            action = selected_action.detach().cpu().numpy()
         model.train()
         return action
 
@@ -57,13 +54,15 @@ class CategoricalDQNPolicy(Policy):
             proj_dist.view(-1).index_add_(0, (u + offset).view(-1), (next_dist * (b - l.float())).view(-1))
             return proj_dist
 
-    def compute_errors(self, online_model, target_model, experiences: tuple, error_weights: torch.FloatTensor, gamma: float = 0.99) -> tuple:
-        states, actions, rewards, next_states, dones = experiences
-        batch_size = states.shape[0]
-        dist = online_model.dist(states)
-        log_p = torch.log(dist[range(batch_size), actions.view(-1)])
-        target_dist = self.projection_distribution(target_model, next_states, rewards, dones, gamma)
+    def compute_errors(self, online_model, target_model, experience_batch: ExperienceBatch, gamma: float = 0.99) -> tuple:
+        batch_size = experience_batch.states.shape[0]
+        dist = online_model.dist(experience_batch.states)
+        log_p = torch.log(dist[range(batch_size), experience_batch.actions.view(-1)])
+        target_dist = self.projection_distribution(target_model, experience_batch.next_states, experience_batch.rewards, experience_batch.dones, gamma)
         errors = - (target_dist * log_p).sum(1)
+        if experience_batch.is_weights is not None:
+            errors *= experience_batch.get_norm_is_weights().reshape_as(errors)
+
         assert 0 <= errors.min(), errors.min()
-        loss = (errors * error_weights).mean()
+        loss = errors.mean()
         return loss, errors

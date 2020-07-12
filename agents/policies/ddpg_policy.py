@@ -35,7 +35,7 @@ class DDPGPolicy:
         """ Perform any end-of-episode updates """
         self.noise.reset()
 
-    def get_action(self, state: torch.Tensor, online_actor: torch.nn.Module, with_noise: bool = True):
+    def get_action(self, state: torch.Tensor, online_actor: torch.nn.Module, with_noise: bool = True) -> np.ndarray:
         """Returns actions for given state as per current policy."""
         online_actor.eval()
         with torch.no_grad():
@@ -44,7 +44,6 @@ class DDPGPolicy:
         if with_noise:
             action += self.noise.sample(action)
         action = np.clip(action, self.action_range[0], self.action_range[1])
-        action = Action(value=action)
         return action
 
     def get_random_action(self, *args):

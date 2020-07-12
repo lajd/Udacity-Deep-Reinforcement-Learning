@@ -16,6 +16,7 @@ IMAGE_SHAPE = (84, 84, 3)
 VISUAL_STATE_SHAPE = (1, 84, 84, 3)
 VECTOR_STATE_SHAPE = (1, 37)
 ACTION_SIZE = 4
+BRAIN_NAME = 'BananaBrain'
 
 default_cfg = {
     ###############

@@ -142,6 +142,12 @@ class Brain:
         # actions = np.random.randint(self.action_size, size=self.num_agents)
         return {self.brain_name: action}
 
+    def get_random_action(self, state: np.ndarray) -> Dict[str, np.ndarray]:
+        # select actions and send to environment
+        action = self.agent.get_random_action(state)
+        # actions = np.random.randint(self.action_size, size=self.num_agents)
+        return {self.brain_name: action}
+
 
 class BrainSet:
     def __init__(self, brains: List[Brain]):
@@ -150,13 +156,14 @@ class BrainSet:
     def get_actions(self, brain_states):
         brain_actions = {}
         for brain_name, state in brain_states.items():
-            brain_actions.update(self.brain_map[brain_name].get_action(state))
+            action = self.brain_map[brain_name].get_action(state)
+            brain_actions.update(action)
         return brain_actions
 
     def get_random_actions(self, brain_states):
         brain_actions = {}
         for brain_name, state in brain_states.items():
-            brain_actions.update(self.brain_map[brain_name].get_action(state))
+            brain_actions.update(self.brain_map[brain_name].get_random_action(state))
         return brain_actions
 
     def brains(self):

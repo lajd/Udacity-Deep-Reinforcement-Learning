@@ -160,7 +160,7 @@ class UnityEnvironmentSimulator:
 
         return brain_set, self.training_scores, i_episode, training_time
 
-    def warmup(self, brain_set: BrainSet, step_agents_fn: Callable, n_episodes: int, max_t: int):
+    def warmup(self, brain_set: BrainSet, n_episodes: int, max_t: int, step_agents_fn: Callable = default_step_agents_fn):
         print("Performing warmup with {} episodes and max_t={}".format(n_episodes, max_t))
         for brain in brain_set.brains():
             brain.agent.set_mode('train')
@@ -239,11 +239,10 @@ class UnityEnvironmentSimulator:
 
             episode_aggregated_score = float(np.mean([np.mean(brain_episode_scores[brain_name]) for brain_name in brain_episode_scores]))
             average_score += episode_aggregated_score
-            print('\rEpisode {}\tScore: {:.2f}\tAverage Score: {:.2f}'.format(i_episode, episode_aggregated_score, self.training_scores.get_mean_sliding_scores()), end='\n')
+            print('\rEpisode {}\tScore: {:.2f}\tAverage Score: {:.2f}'.format(i_episode, episode_aggregated_score, average_score), end='\n')
         average_score /= n_episodes
 
         return brain_set, average_score
-
 
     def get_agent_performance(self, brain_set: BrainSet, n_train_episodes: int = 100, n_eval_episodes=10, sliding_window_size: int = 100, max_t: int = 1000) -> tuple:
         """

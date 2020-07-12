@@ -154,8 +154,8 @@ class DQNAgent(Agent):
                 action = self.previous_action
         return action
 
-    def get_random_action(self, state: torch.Tensor):
-        action = Action(value=np.random.randint(0, self.action_size), distribution=None)
+    def get_random_action(self, state: torch.Tensor) -> np.ndarray:
+        action = np.array(np.random.random_integers(0, self.action_size, (1, 1)))
         return action
 
     def learn(self, experience_batch: ExperienceBatch, gamma: float) -> tuple:

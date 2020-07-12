@@ -104,8 +104,6 @@ class DQN(BaseModel):
         self.features = featurizer
         self.output = self.get_output()
 
-        self.initial = True
-
     def step(self):
         """Perform actions after each learning step"""
         if self.noisy_output:
@@ -282,6 +280,7 @@ class VisualDQN(DQN):
     def prepare_for_forward(self, state, act=False):
         """Build a network that maps state -> action values."""
         if act:
+            state = state.squeeze(0)
             self.state_buffer.append(state)
             # assert preprocessed_state.shape == torch.Size((1, 84, 84)), preprocessed_state.shape
             # Ensure the state buffer has at least num_stacked_frames states
@@ -297,21 +296,3 @@ class VisualDQN(DQN):
             state = state.permute(0, 4, 1, 2, 3)
 
         return state
-
-    def preprocess_state(self, state: torch.Tensor):
-        assert state.shape == torch.Size((1, 84, 84, 3)), state.shape
-        if self.grayscale:
-            # bsize x num_stacked_frames x r x g x b
-            image = RGBImage(state)
-            # Remove the last dimension by converting to grayscale
-            gray_image = image.to_gray()
-            normalized_image = gray_image / 255
-            preprocessed_state = normalized_image
-        else:
-            state /= 255
-            preprocessed_state = state
-
-        if self.initial:
-            print("Preprocessed state shape is: {}".format(preprocessed_state.shape))
-            self.initial = False
-        return preprocessed_state

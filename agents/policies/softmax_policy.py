@@ -21,7 +21,7 @@ class SoftmaxPolicy(Policy):
         model.train()
 
         probs = torch.nn.functional.softmax(action_values)
-        action = np.random.choice(np.arange(0, self.action_size), p=probs.view(-1).numpy())
+        action = np.array([np.random.choice(np.arange(0, self.action_size), p=probs.view(-1).numpy())])
         return action
 
     def get_deterministic_policy(self, state_action_values_dict: dict):

@@ -46,9 +46,10 @@ class DDPGPolicy:
         action = np.clip(action, self.action_range[0], self.action_range[1])
         return action
 
-    def get_random_action(self, *args):
+    def get_random_action(self, *args) -> np.ndarray:
         """ Get a random action (used for warmup) """
-        return Action(value=torch.distributions.uniform.Uniform(*self.action_range).sample(torch.Size((1, self.action_dim))))
+        return torch.distributions.uniform.Uniform(*self.action_range).sample(torch.Size((1, self.action_dim))).numpy()
+        # return Action(value=torch.distributions.uniform.Uniform(*self.action_range).sample(torch.Size((1, self.action_dim))))
 
     def compute_actor_errors(self, experience_batch: ExperienceBatch, online_actor, target_actor, target_critic, online_critic) -> tuple:
         """ Compute the error and loss of the actor"""

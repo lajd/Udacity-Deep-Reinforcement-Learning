@@ -21,6 +21,6 @@ class MaxPolicy(Policy):
             action_values = model.forward(state, act=True)
         model.train()
 
-        action = action_values.max(1)[1].data[0]
+        action = action_values.max(1)[1].cpu().numpy()
         # action = Action(value=int(action_values.max(1)[1].data[0]), distribution=None)
         return action

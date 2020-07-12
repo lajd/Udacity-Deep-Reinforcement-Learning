@@ -41,12 +41,12 @@ class Agent(torch.nn.Module):
         pass
 
     @abstractmethod
-    def get_action(self, state: np.array) -> Action:
+    def get_action(self, state: np.array) -> np.ndarray:
         """Determine an action given an environment state"""
         pass
 
     @abstractmethod
-    def get_random_action(self, *args) -> Action:
+    def get_random_action(self, *args) -> np.ndarray:
         pass
 
     @abstractmethod

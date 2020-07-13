@@ -21,7 +21,6 @@ TRAINING_SCORES_SAVE_PATH = join(SOLUTION_CHECKPOINT_DIR, 'solution_training_sco
 os.makedirs(SOLUTION_CHECKPOINT_DIR, exist_ok=True)
 
 
-
 def get_solution_brain_set():
     # Define the solution hyper parameters
     params = deepcopy(default_cfg)
@@ -115,7 +114,7 @@ if __name__ == '__main__':
     brain_set, params = get_solution_brain_set()
 
     # Run warmup
-    # simulator.warmup(brain_set=brain_set, n_episodes=int(params['WARMUP_STEPS'] / params['MAX_T']), max_t=params['MAX_T'])
+    simulator.warmup(brain_set=brain_set, n_episodes=int(params['WARMUP_STEPS'] / params['MAX_T']), max_t=params['MAX_T'])
 
     # Run Training
     brain_set, training_scores, i_episode, training_time = simulator.train(

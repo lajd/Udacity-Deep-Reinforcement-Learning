@@ -37,14 +37,24 @@ class Memory:
         """Randomly sample a batch of experiences from memory."""
         experiences = random.sample(self.buffer, k=batch_size)
 
-        states = torch.from_numpy(np.vstack([e.state for e in experiences if e is not None])).float().to(device)
-        actions = torch.from_numpy(np.vstack([e.action for e in experiences if e is not None])).float().to(device)
-        rewards = torch.from_numpy(np.vstack([e.reward for e in experiences if e is not None])).float().to(device)
-        next_states = torch.from_numpy(np.vstack([e.next_state for e in experiences if e is not None])).float().to(device)
-        dones = torch.from_numpy(np.vstack([e.done for e in experiences if e is not None]).astype(np.uint8)).float().to(device)
-        joint_states = torch.from_numpy(np.vstack([e.joint_state for e in experiences if e is not None])).float().to(device)
-        joint_actions = torch.from_numpy(np.vstack([e.joint_action for e in experiences if e is not None])).float().to(device)
-        joint_next_states = torch.from_numpy(np.vstack([e.joint_next_state for e in experiences if e is not None])).float().to(device)
+        states = [e.state for e in experiences if e.state is not None]
+        actions = [e.action for e in experiences if e.action is not None]
+        rewards = [e.reward for e in experiences if e.reward  is not None]
+        next_states = [e.next_state for e in experiences if e.next_state  is not None]
+        dones = [e.done for e in experiences if e.done is not None]
+        joint_states = [e.joint_state for e in experiences if e.joint_state is not None]
+        joint_actions = [e.joint_action for e in experiences if e.joint_action is not None]
+        joint_next_states = [e.joint_next_state for e in experiences if e.joint_next_state is not None]
+
+        states = torch.from_numpy(np.vstack(states)).float().to(device)
+        actions = torch.from_numpy(np.vstack(actions)).float().to(device)
+        rewards = torch.from_numpy(np.vstack(rewards)).float().to(device)
+        next_states = torch.from_numpy(np.vstack(next_states)).float().to(device)
+        dones = torch.from_numpy(np.vstack(dones).astype(np.uint8)).float().to(device)
+
+        joint_states = None if len(joint_next_states) == 0 else torch.from_numpy(np.vstack(joint_states)).float().to(device)
+        joint_actions = None if len(joint_next_states) == 0 else torch.from_numpy(np.vstack(joint_actions)).float().to(device)
+        joint_next_states = None if len(joint_next_states) == 0 else torch.from_numpy(np.vstack(joint_next_states)).float().to(device)
 
         return ExperienceBatch(
             states=states, actions=actions, rewards=rewards, next_states=next_states,

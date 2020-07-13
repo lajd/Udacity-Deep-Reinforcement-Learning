@@ -37,6 +37,7 @@ class DDPGAgent:
             state_size: int,
             action_size: int,
             random_seed: int,
+            num_agents: int,
             memory_factory: Callable[[], Union[Memory, PrioritizedMemory]],
             actor_model_factory: Callable[[], torch.nn.Module],
             actor_optimizer_factory: Callable[[torch.nn.Module], Optimizer],
@@ -108,6 +109,7 @@ class DDPGAgent:
             DDPGAgent.policy.step_episode(None)
 
         # Parameters
+        self.num_agents = num_agents
         self.state_size = state_size
         self.action_size = action_size
         self.seed = random.seed(random_seed)

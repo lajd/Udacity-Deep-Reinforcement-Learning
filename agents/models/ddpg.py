@@ -71,7 +71,6 @@ class Actor(nn.Module):
 
     def forward(self, state: torch.Tensor):
         """Build an actor (policy) network that maps states -> actions."""
-        print(state.shape)
         x = self.activation(self.fc1(state))
         x = self.activation(self.fc2(x))
         return torch.tanh(self.fc3(x))

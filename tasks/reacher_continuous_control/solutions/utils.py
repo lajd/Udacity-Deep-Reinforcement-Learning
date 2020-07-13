@@ -6,6 +6,7 @@ ENVIRONMENTS_DIR = join(dirname(dirname(__file__)), 'environments')
 STATE_SIZE = 33
 ACTION_SIZE = 4
 SEED = 0
+BRAIN_NAME = 'ReacherBrain'
 
 
 def get_simulator():

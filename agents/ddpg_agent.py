@@ -8,32 +8,17 @@ from torch.optim.lr_scheduler import _LRScheduler
 from torch.optim.optimizer import Optimizer
 from tools.misc import soft_update
 import torch
+from agents.base import Agent
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # torch.autograd.set_detect_anomaly(True)
 
 
-class DDPGAgent:
+class DDPGAgent(Agent):
     """Interacts with and learns from the environment."""
-    memory = None
-    online_actor = None
-    target_actor = None
-    actor_optimizer = None
-
-    online_critic = None
-    target_critic = None
-    critic_optimizer = None
-
-    policy = None
-
-    actor_optimizer_scheduler = None
-    critic_optimizer_scheduler = None
-
-    episode_counter = 0
-
     def __init__(
             self,
-            state_size: int,
+            state_shape: int,
             action_size: int,
             random_seed: int,
             num_agents: int,
@@ -56,7 +41,7 @@ class DDPGAgent:
         """Initialize an Agent object.
         Params
         ======
-            state_size (int): dimension of each state
+            state_shape (int): dimension of each state
             action_size (int): dimension of each action
             random_seed (int): random seed
             memory_factory: (Callable) Return a Memory or PrioritizedMemory object
@@ -75,44 +60,29 @@ class DDPGAgent:
             policy_update_frequency (int, default=1): The number of time steps to wait before optimizing the policy &
                 updating the target networks. Introduced in TD3.
         """
-
+        super().__init__(action_size=action_size, state_shape=state_shape, num_agents=num_agents)
         # Shared Memory
-        if DDPGAgent.memory is None:
-            DDPGAgent.memory = memory_factory()
-        assert batch_size < DDPGAgent.memory.capacity, \
-            "Batch size {} must be less than memory capacity {}".format(batch_size, DDPGAgent.memory.capacity)
+        self.memory = memory_factory()
+        assert batch_size < self.memory.capacity, \
+            "Batch size {} must be less than memory capacity {}".format(batch_size, self.memory.capacity)
 
-        # Shared Actor network
-        if DDPGAgent.online_actor is None:
-            DDPGAgent.online_actor = actor_model_factory().to(device).train()
-        if DDPGAgent.target_actor is None:
-            DDPGAgent.target_actor = actor_model_factory().to(device).eval()
-        if DDPGAgent.actor_optimizer is None:
-            DDPGAgent.actor_optimizer = actor_optimizer_factory(DDPGAgent.online_actor)
-        if DDPGAgent.actor_optimizer_scheduler is None:
-            DDPGAgent.actor_optimizer_scheduler = actor_optimizer_scheduler(DDPGAgent.actor_optimizer)
+        self.online_actor = actor_model_factory().to(device).train()
+        self.target_actor = actor_model_factory().to(device).eval()
+        self.actor_optimizer = actor_optimizer_factory(self.online_actor)
+        self.actor_optimizer_scheduler = actor_optimizer_scheduler(self.actor_optimizer)
 
         # Shared Critic network
-        if DDPGAgent.online_critic is None:
-            DDPGAgent.online_critic = critic_model_factory().to(device).train()
-        if DDPGAgent.target_critic is None:
-            DDPGAgent.target_critic = critic_model_factory().to(device).eval()
-        if DDPGAgent.critic_optimizer is None:
-            DDPGAgent.critic_optimizer = critic_optimizer_factory(DDPGAgent.online_critic)
-        if DDPGAgent.critic_optimizer_scheduler is None:
-            DDPGAgent.critic_optimizer_scheduler = critic_optimizer_scheduler(DDPGAgent.actor_optimizer)
+        self.online_critic = critic_model_factory().to(device).train()
+        self.target_critic = critic_model_factory().to(device).eval()
+        self.critic_optimizer = critic_optimizer_factory(self.online_critic)
+        self.critic_optimizer_scheduler = critic_optimizer_scheduler(self.actor_optimizer)
 
         # Shared Policy
-        if DDPGAgent.policy is None:
-            DDPGAgent.policy = policy_factory()
-            DDPGAgent.policy.step_episode(None)
+        self.policy = policy_factory()
+        self.policy.step_episode(None)
 
         # Parameters
-        self.num_agents = num_agents
-        self.state_size = state_size
-        self.action_size = action_size
         self.seed = random.seed(random_seed)
-        self.t_step = 0
         self.update_frequency = update_frequency
         self.n_learning_iterations = n_learning_iterations
         self.batch_size = batch_size
@@ -123,58 +93,49 @@ class DDPGAgent:
 
     def set_mode(self, mode: str):
         if mode == 'train':
-            DDPGAgent.online_actor.train()
-            DDPGAgent.online_critic.train()
+            self.online_actor.train()
+            self.online_critic.train()
         elif mode == 'eval':
-            DDPGAgent.online_actor.eval()
-            DDPGAgent.online_critic.eval()
+            self.online_actor.eval()
+            self.online_critic.eval()
         else:
             raise ValueError('Invalid mode: {}'.format(mode))
 
-    @staticmethod
-    def preprocess_state(state):
-        """ Perform any state preprocessing """
-        return state
-
     def step_episode(self, episode: int):
         """ Perform any end-of-epsiode updates """
-        if episode > DDPGAgent.episode_counter:
-            # Only perform once (regardless of the number
-            # of agents) at end of episode
-            DDPGAgent.policy.step_episode(episode)
-            DDPGAgent.actor_optimizer.step()
-            DDPGAgent.critic_optimizer.step()
-            DDPGAgent.memory.step_episode(episode)
-            DDPGAgent.episode_counter += 1
+        self.policy.step_episode(episode)
+        self.actor_optimizer.step()
+        self.critic_optimizer.step()
+        self.memory.step_episode(episode)
+        self.episode_counter += 1
 
-    def step(self, experience: Experience):
+    def step(self, experience: Experience, **kwargs):
         """Save experience in replay memory, and use random sample from buffer to learn."""
 
-        self.t_step += 1
+        self.memory.add(experience)
 
-        DDPGAgent.memory.add(experience)
-
-        if self.t_step % self.update_frequency != 0:
+        if self.warmup:
             return
+        else:
+            self.t_step += 1
+            # Learn, if enough samples are available in memory
+            if self.t_step % self.update_frequency == 0 and len(self.memory) > self.batch_size:
+                for i in range(self.n_learning_iterations):
+                    experience_batch: ExperienceBatch = self.memory.sample(self.batch_size)
+                    critic_loss, critic_errors, actor_loss, actor_errors = self.learn(experience_batch)
 
-        # Learn, if enough samples are available in memory
-        if len(DDPGAgent.memory) > self.batch_size:
-            for i in range(self.n_learning_iterations):
-                experience_batch: ExperienceBatch = DDPGAgent.memory.sample(self.batch_size)
-                critic_loss, critic_errors, actor_loss, actor_errors = self.learn(experience_batch)
+                    # Update the priority replay buffer
+                    with torch.no_grad():
+                        if critic_errors.min() < 0:
+                            raise RuntimeError("Errors must be > 0, found {}".format(critic_errors.min()))
 
-                # Update the priority replay buffer
-                with torch.no_grad():
-                    if critic_errors.min() < 0:
-                        raise RuntimeError("Errors must be > 0, found {}".format(critic_errors.min()))
-
-                    priorities = critic_errors.detach().cpu().numpy()
-                    DDPGAgent.memory.update(experience_batch.sample_idxs, priorities)
+                        priorities = critic_errors.detach().cpu().numpy()
+                        self.memory.update(experience_batch.sample_idxs, priorities)
 
     def get_action(self, state: torch.Tensor, add_noise=True) -> np.ndarray:
         """Returns actions for given state as per current policy."""
         state = state.to(device)
-        action = DDPGAgent.policy.get_action(state, DDPGAgent.online_actor, add_noise)
+        action = self.policy.get_action(state, self.online_actor, add_noise)
         return action
 
     def get_random_action(self, *args):
@@ -194,35 +155,35 @@ class DDPGAgent:
             actor_errors
         """
         experience_batch = experience_batch.to(device)
-        critic_loss, critic_errors = DDPGAgent.policy.compute_critic_errors(
+        critic_loss, critic_errors = self.policy.compute_critic_errors(
             experience_batch,
-            online_actor=DDPGAgent.online_actor,
-            online_critic=DDPGAgent.online_critic,
-            target_actor=DDPGAgent.target_actor,
-            target_critic=DDPGAgent.target_critic,
+            online_actor=self.online_actor,
+            online_critic=self.online_critic,
+            target_actor=self.target_actor,
+            target_critic=self.target_critic,
         )
 
-        DDPGAgent.critic_optimizer.zero_grad()
+        self.critic_optimizer.zero_grad()
         critic_loss.backward()
-        torch.nn.utils.clip_grad_norm_(DDPGAgent.online_critic.parameters(), self.critic_grad_norm_clip)
-        DDPGAgent.critic_optimizer.step()
+        torch.nn.utils.clip_grad_norm_(self.online_critic.parameters(), self.critic_grad_norm_clip)
+        self.critic_optimizer.step()
 
         if self.t_step % self.policy_update_frequency == 0:
             # Delay the policy update as in TD3
-            actor_loss, actor_errors = DDPGAgent.policy.compute_actor_errors(
+            actor_loss, actor_errors = self.policy.compute_actor_errors(
                 experience_batch,
-                online_actor=DDPGAgent.online_actor,
-                online_critic=DDPGAgent.online_critic,
-                target_actor=DDPGAgent.target_actor,
-                target_critic=DDPGAgent.target_critic,
+                online_actor=self.online_actor,
+                online_critic=self.online_critic,
+                target_actor=self.target_actor,
+                target_critic=self.target_critic,
             )
 
-            DDPGAgent.actor_optimizer.zero_grad()
+            self.actor_optimizer.zero_grad()
             actor_loss.backward()
-            DDPGAgent.actor_optimizer.step()
+            self.actor_optimizer.step()
 
             # Update target networks
-            soft_update(DDPGAgent.online_critic, DDPGAgent.target_critic, self.tau)
-            soft_update(DDPGAgent.online_actor, DDPGAgent.target_actor, self.tau)
+            soft_update(self.online_critic, self.target_critic, self.tau)
+            soft_update(self.online_actor, self.target_actor, self.tau)
             return critic_loss, critic_errors, actor_loss, actor_errors
         return critic_loss, critic_errors, None, None

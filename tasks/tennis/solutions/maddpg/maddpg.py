@@ -3,6 +3,7 @@ from os.path import join
 import pickle
 import numpy as np
 import torch
+import torch.optim as optim
 from tools.rl_constants import Experience, Brain, BrainSet
 from tasks.tennis.solutions.utils import STATE_SIZE, ACTION_SIZE, NUM_AGENTS, BRAIN_NAME, get_simulator
 from agents.maddpg_agent import MADDPGAgent
@@ -10,6 +11,7 @@ from tasks.tennis.solutions.maddpg import SOLUTIONS_CHECKPOINT_DIR
 from agents.policies.maddpg_policy import MADDPGPolicy
 from tools.misc import LinearSchedule
 from agents.models.components import noise as rm
+from tools.misc import *
 
 SAVE_TAG = 'homogeneous_maddpg_baseline'
 ACTOR_CHECKPOINT_FN = lambda brain_name: join(SOLUTIONS_CHECKPOINT_DIR, f'{brain_name}_{SAVE_TAG}_actor_checkpoint.pth')
@@ -21,10 +23,17 @@ NUM_EPISODES = 1000
 MAX_T = 1000
 SOLVE_SCORE = 2
 WARMUP_STEPS = 5000
+BUFFER_SIZE = int(1e6)  # replay buffer size
+ACTOR_LR = 1e-3  # Actor network learning rate
+CRITIC_LR = 1e-4  # Actor network learning rate
 
 
 def step_agents_fn(brain_set: BrainSet, next_brain_environment: dict, t: int):
     for brain_name, brain_environment in next_brain_environment.items():
+        # joint_state = brain_environment['states'].view(1, -1)
+        # joint_action = brain_environment['actions'].reshape(1, -1)
+        # join_next_state = brain_environment['next_states'].view(1, -1)
+
         for i in range(brain_set[brain_name].num_agents):
             joint_state = torch.cat((brain_environment['states'][i], brain_environment['states'][1 - i]))
             joint_action = np.concatenate((brain_environment['actions'][i], brain_environment['actions'][1 - i]))
@@ -57,7 +66,11 @@ if __name__ == '__main__':
 
     homogeneous_maddpg_agent = MADDPGAgent(
         policy, STATE_SIZE, ACTION_SIZE, num_agents=NUM_AGENTS,
-        fc1=400, fc2=300, seed=0,
+        critic_factory=lambda: Critic(STATE_SIZE, ACTION_SIZE, 400, 300, seed=1),
+        actor_factory=lambda: Actor(STATE_SIZE, ACTION_SIZE, 400, 300, seed=2),
+        critic_optimizer_factory=lambda parameters: optim.Adam(parameters, lr=CRITIC_LR, weight_decay=1.e-5),
+        actor_optimizer_factory=lambda parameters: optim.Adam(parameters, lr=ACTOR_LR),
+        seed=0,
     )
 
     tennis_brain = Brain(
@@ -80,8 +93,6 @@ if __name__ == '__main__':
         solved_score=SOLVE_SCORE,
         step_agents_fn=step_agents_fn,
         reward_accumulation_fn=lambda rewards: np.max(rewards),
-        preprocess_actions_fn=lambda actions: actions.reshape(1, -1),
-        get_actions_list_fn=lambda agents, states: [agents[0].get_action(states)]
     )
 
     if training_scores.get_mean_sliding_scores() > SOLVE_SCORE:

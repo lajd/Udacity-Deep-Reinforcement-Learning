@@ -10,7 +10,6 @@ from tools.rl_constants import Experience
 from torch.optim.lr_scheduler import _LRScheduler
 from tools.misc import set_seed
 from agents.models.base import BaseModel
-from tools.rl_constants import Action
 from tools.misc import soft_update
 from tools.rl_constants import ExperienceBatch
 
@@ -37,7 +36,8 @@ class DQNAgent(Agent):
                  update_frequency: int = 5,
                  seed: int = None,
                  action_repeats: int = 1,
-                 gradient_clip: float = 1
+                 gradient_clip: float = 1,
+                 num_agents: int = 1
                  ):
         """Initialize an Agent object.
 
@@ -55,13 +55,8 @@ class DQNAgent(Agent):
             update_frequency: int = 5,
             seed: int = None
         """
-        super().__init__(
-            state_shape=state_shape,
-            action_size=action_size,
-            policy=policy,
-            lr_scheduler=lr_scheduler,
-            optimizer=optimizer
-        )
+        super().__init__(action_size=action_size, state_shape=state_shape, num_agents=num_agents)
+
         self.batch_size = batch_size
         self.gamma = gamma
         self.tau = tau
@@ -77,9 +72,11 @@ class DQNAgent(Agent):
 
         self.memory = memory
 
-        self.t_step = 0
-        self.episode_step = 0
         self.losses = []
+
+        self.policy: Policy = policy
+        self.optimizer: optimizer = optimizer
+        self.lr_scheduler: _LRScheduler = lr_scheduler
 
         if seed:
             set_seed(seed)
@@ -95,7 +92,7 @@ class DQNAgent(Agent):
         return preprocessed_state
 
     def step_episode(self, episode: int, param_frequency: int = 10):
-        self.episode_step += 1
+        self.episode_counter += 1
         self.policy.step(episode)
         self.lr_scheduler.step()
         self.memory.step_episode(episode)
@@ -105,29 +102,31 @@ class DQNAgent(Agent):
 
     def step(self, experience: Experience, **kwargs) -> None:
         """Step the agent in response to a change in environment"""
-        self.t_step += 1
-
         # Add the experience, defaulting the priority 0
         # self.memory.add(experience, 0)
         self.memory.add(experience)
 
-        # If enough samples are available in memory, get random subset and learn
-        if self.t_step % self.update_frequency == 0 and len(self.memory) > self.batch_size:
-            experience_batch = self.memory.sample(self.batch_size)
-            loss, errors = self.learn(experience_batch, self.gamma)
+        if self.warmup:
+            return
+        else:
+            self.t_step += 1
+            # If enough samples are available in memory, get random subset and learn
+            if self.t_step % self.update_frequency == 0 and len(self.memory) > self.batch_size:
+                experience_batch = self.memory.sample(self.batch_size)
+                loss, errors = self.learn(experience_batch, self.gamma)
 
-            with torch.no_grad():
-                if errors.min() < 0:
-                    raise RuntimeError("Errors must be > 0, found {}".format(errors.min()))
+                with torch.no_grad():
+                    if errors.min() < 0:
+                        raise RuntimeError("Errors must be > 0, found {}".format(errors.min()))
 
-                priorities = errors.detach().cpu().numpy()
-                self.memory.update(experience_batch.sample_idxs, priorities)
+                    priorities = errors.detach().cpu().numpy()
+                    self.memory.update(experience_batch.sample_idxs, priorities)
 
-            # Perform any post-backprop updates
-            self.online_qnetwork.step()
-            self.target_qnetwork.step()
+                # Perform any post-backprop updates
+                self.online_qnetwork.step()
+                self.target_qnetwork.step()
 
-            self.param_capture.add('loss', loss)
+                self.param_capture.add('loss', loss)
 
     def get_action(self, state: torch.Tensor) -> np.ndarray:
         """Returns actions for given state as per current policy.

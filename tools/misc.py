@@ -350,20 +350,19 @@ class Critic(nn.Module):
 
     def forward(self, input_, action):
         """Build a network that maps state & action to action values."""
-
+        action = action.float()
         x = self.bn(input_)
         x = F.relu(self.bn2(self.fc1(x)))
         x = torch.cat([x, action], dim=1)
         x = F.relu(self.fc2(x))
 
         x = self.fc5(x)
-
         return x
 
 
 class Actor(nn.Module):
 
-    def __init__(self, state_size, action_size, fc1, fc2, seed):
+    def __init__(self, state_size, action_size, fc1, fc2, seed, with_argmax: bool = False):
         super(Actor, self).__init__()
 
         # network mapping state to action
@@ -384,8 +383,11 @@ class Actor(nn.Module):
 
         # Tanh
         self.tan = nn.Tanh()
+        self.with_argmax = with_argmax
+        self.softmax = torch.nn.Softmax(dim=-1)
 
     def forward(self, x: torch.Tensor):
+        bsize = x.shape[0]
         if isinstance(x, torch.Tensor):
             if x.dim() == 1:
                 x = x.unsqueeze(0)
@@ -397,6 +399,12 @@ class Actor(nn.Module):
 
         # h3 is a 2D vector (a force that is applied to the agent)
         # we bound the norm of the vector to be between 0 and 10
-        return 10.0 * (F.tanh(norm)) * x / norm if norm > 0 else 10 * x
+
+        x = 10.0 * (F.tanh(norm)) * x / norm if norm > 0 else 10 * x
+
+        if self.with_argmax:
+            x = self.softmax(x)
+            x = torch.argmax(x, dim=-1).view(bsize, 1)
+        return x
 
         # return self.tan(self.fc4(x))

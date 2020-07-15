@@ -91,8 +91,6 @@ class UnityEnvironmentSimulator:
               n_episodes=2000, max_t=1000, sliding_window_size: int = 100,
               step_agents_fn=default_step_agents_fn,
               reward_accumulation_fn=lambda rewards: rewards,
-              preprocess_actions_fn = lambda actions: actions,
-              get_actions_list_fn = lambda agents, states: [agent.get_action(state) for agent, state in zip(agents, states)]
               ) -> Tuple[BrainSet, Scores, int, float]:
         """Train the agent in the environment
 
@@ -111,6 +109,7 @@ class UnityEnvironmentSimulator:
         """
         for brain in brain_set.brains():
             brain.agent.set_mode('train')
+            brain.agent.set_warmup(False)
 
         self.training_scores = Scores(window_size=sliding_window_size)
 
@@ -162,6 +161,7 @@ class UnityEnvironmentSimulator:
         print("Performing warmup with {} episodes and max_t={}".format(n_episodes, max_t))
         for brain in brain_set.brains():
             brain.agent.set_mode('train')
+            brain.agent.set_warmup(True)
 
         t1 = time.time()
         for i_episode in range(1, n_episodes + 1):
@@ -189,8 +189,6 @@ class UnityEnvironmentSimulator:
     def evaluate(self, brain_set: BrainSet,
               n_episodes=5, max_t=1000,
               reward_accumulation_fn=lambda rewards: rewards,
-              preprocess_actions_fn = lambda actions: actions,
-              get_actions_list_fn = lambda agents, states: [agent.get_action(state) for agent, state in zip(agents, states)]
               ) -> Tuple[BrainSet, float]:
         """Train the agent in the environment
 

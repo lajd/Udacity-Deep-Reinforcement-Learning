@@ -38,7 +38,7 @@ TRAINING_SCORES_SAVE_PATH = os.path.join(SOLUTIONS_CHECKPOINT_DIR, f'{SAVE_TAG}_
 def get_agent(memory_):
     """ Return an agent with shared memory, actor, critic and optimizers"""
     return DDPGAgent(
-        state_size=STATE_SIZE,
+        state_shape=STATE_SIZE,
         action_size=ACTION_SIZE,
         random_seed=SEED,
         num_agents=NUM_AGENTS,

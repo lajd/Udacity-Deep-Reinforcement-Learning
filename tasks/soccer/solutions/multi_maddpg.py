@@ -2,6 +2,7 @@ import os
 from os.path import join
 import pickle
 import numpy as np
+import torch.optim as optim
 import torch
 from tools.rl_constants import Experience, Brain, BrainSet
 from tasks.soccer.solutions.utils import STRIKER_STATE_SIZE, GOALIE_STATE_SIZE, NUM_STRIKER_AGENTS,\
@@ -12,6 +13,7 @@ from tasks.tennis.solutions.maddpg import SOLUTIONS_CHECKPOINT_DIR
 from agents.policies.maddpg_policy import MADDPGPolicy
 from tools.misc import LinearSchedule
 from agents.models.components import noise as rm
+from tools.misc import *
 
 SAVE_TAG = 'homogeneous_maddpg_baseline'
 ACTOR_CHECKPOINT_FN = lambda brain_name: join(SOLUTIONS_CHECKPOINT_DIR, f'{brain_name}_{SAVE_TAG}_actor_checkpoint.pth')
@@ -22,7 +24,10 @@ TRAINING_SCORES_SAVE_PATH_FN = lambda brain_name: join(SOLUTIONS_CHECKPOINT_DIR,
 NUM_EPISODES = 1000
 MAX_T = 1000
 SOLVE_SCORE = 2
-WARMUP_STEPS = 5000
+WARMUP_STEPS = 1#5000
+BUFFER_SIZE = int(1e6)  # replay buffer size
+ACTOR_LR = 1e-3  # Actor network learning rate
+CRITIC_LR = 1e-4  # Actor network learning rate
 
 
 def step_agents_fn(brain_set: BrainSet, next_brain_environment: dict, t: int):
@@ -57,10 +62,14 @@ if __name__ == '__main__':
             continuous_actions=False,
             discrete_action_range=GOALIE_ACTION_DISCRETE_RANGE
         ),
-        state_size=GOALIE_STATE_SIZE,
+        state_shape=GOALIE_STATE_SIZE,
         action_size=GOALIE_ACTION_SIZE,
         num_agents=NUM_GOALIE_AGENTS,
-        fc1=400, fc2=300, seed=0,
+        critic_factory=lambda: Critic(GOALIE_STATE_SIZE, GOALIE_STATE_SIZE, 400, 300, seed=1),
+        actor_factory=lambda: Actor(GOALIE_STATE_SIZE, GOALIE_ACTION_SIZE, 400, 300, seed=2, with_argmax=True),
+        critic_optimizer_factory=lambda parameters: optim.Adam(parameters, lr=CRITIC_LR, weight_decay=1.e-5),
+        actor_optimizer_factory=lambda parameters: optim.Adam(parameters, lr=ACTOR_LR),
+        seed=0,
     )
 
     goalie_brain = Brain(
@@ -80,10 +89,14 @@ if __name__ == '__main__':
             continuous_actions=False,
             discrete_action_range=STRIKER_ACTION_DISCRETE_RANGE
         ),
-        state_size=STRIKER_STATE_SIZE,
+        state_shape=STRIKER_STATE_SIZE,
         action_size=STRIKER_ACTION_SIZE,
         num_agents=NUM_STRIKER_AGENTS,
-        fc1=400, fc2=300, seed=0,
+        critic_factory=lambda: Critic(STRIKER_STATE_SIZE, STRIKER_ACTION_SIZE, 400, 300, seed=1),
+        actor_factory=lambda: Actor(STRIKER_STATE_SIZE, STRIKER_ACTION_SIZE, 400, 300, seed=2, with_argmax=True),
+        critic_optimizer_factory=lambda parameters: optim.Adam(parameters, lr=CRITIC_LR, weight_decay=1.e-5),
+        actor_optimizer_factory=lambda parameters: optim.Adam(parameters, lr=ACTOR_LR),
+        seed=0,
     )
 
     striker_brain = Brain(
@@ -106,8 +119,6 @@ if __name__ == '__main__':
         solved_score=SOLVE_SCORE,
         step_agents_fn=step_agents_fn,
         reward_accumulation_fn=lambda rewards: np.max(rewards),
-        preprocess_actions_fn=lambda actions: actions.reshape(1, -1),
-        get_actions_list_fn=lambda agents, states: [agents[0].get_action(states)]
     )
 
     if training_scores.get_mean_sliding_scores() > SOLVE_SCORE:

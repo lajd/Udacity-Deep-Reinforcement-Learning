@@ -92,7 +92,7 @@ class MADDPGPolicy:
         """ Compute the error and loss of the critic"""
         batch_size = len(experience_batch)
         all_next_actions = target_actor(experience_batch.joint_next_states.view(batch_size * 2, -1)).view(batch_size, -1)
-        critic_target_input = torch.cat((experience_batch.joint_next_states, all_next_actions.view(batch_size * 2, -1)[1::2]), dim=1).to(
+        critic_target_input = torch.cat((experience_batch.joint_next_states, all_next_actions.view(batch_size * 2, -1)[1::2].float()), dim=1).to(
             device)
         with torch.no_grad():
             q_target_next = target_critic(critic_target_input, all_next_actions.view(batch_size * 2, -1)[::2])

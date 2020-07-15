@@ -35,7 +35,7 @@ CRITIC_CHECKPOINT = os.path.join(SOLUTIONS_CHECKPOINT_DIR, '{}_critic_checkpoint
 def get_solution_brain_set(actor_network: torch.nn.Module, critic_network: torch.nn.Module):
     """ Return an agent with shared memory, actor, critic and optimizers"""
     solution_agent = DDPGAgent(
-        state_size=STATE_SIZE,
+        state_shape=STATE_SIZE,
         action_size=ACTION_SIZE,
         random_seed=SEED,
         num_agents=NUM_AGENTS,

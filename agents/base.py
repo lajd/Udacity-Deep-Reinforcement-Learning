@@ -1,44 +1,35 @@
 from abc import abstractmethod
 import torch
 import numpy as np
-from typing import Tuple
-from agents.policies.base_policy import Policy
-from torch.optim.lr_scheduler import _LRScheduler
+from typing import Tuple, Union
 from tools.rl_constants import Experience
 from tools.parameter_capture import ParameterCapture
 
 
-class Agent(torch.nn.Module):
+class Agent:
     """ An agent which received state & reward from, and interacts with, and environment"""
-    def __init__(self, state_shape: Tuple[int, ...], action_size: int, policy: Policy, optimizer: torch.optim.Optimizer, lr_scheduler: _LRScheduler):
+    def __init__(self, state_shape: Union[Tuple[int, ...], int], action_size: int, num_agents: int):
         super().__init__()
         self.state_shape = state_shape
         self.action_size = action_size
+        self.num_agents = num_agents
 
-        self.policy: Policy = policy
-        self.optimizer: optimizer = optimizer
-        self.lr_scheduler: _LRScheduler = lr_scheduler
-
+        self.warmup = False
+        self.t_step = 0
+        self.episode_counter = 0
         self.param_capture = ParameterCapture()
+        self.training = True
 
-    def set_mode(self, mode: str):
-        """ Set the mode of the agent """
-        if mode == 'train':
-            self.train()
-            self.policy.train = True
-        elif mode.startswith('eval'):
-            self.eval()
-            self.policy.eval()  # Make the policy greedy
-        else:
-            raise ValueError("only modes `train`, `evaluate` are supported")
-
-    def preprocess_state(self, state: torch.Tensor):
-        return state
+    def set_warmup(self, warmup: bool):
+        self.warmup = warmup
 
     @abstractmethod
-    def load(self, *args, **kwargs):
-        """ Load the agent model """
+    def set_mode(self, mode: str):
         pass
+
+    def preprocess_state(self, state):
+        """ Perform any state preprocessing """
+        return state
 
     @abstractmethod
     def get_action(self, state: np.array) -> np.ndarray:

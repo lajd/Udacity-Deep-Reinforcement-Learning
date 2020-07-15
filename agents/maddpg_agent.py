@@ -1,12 +1,8 @@
-import torch
-import random
-import numpy as np
-from tools.misc import soft_update
 from typing import Callable
+from agents.base import Agent
+from tools.misc import *
 from tools.rl_constants import Experience, ExperienceBatch
 from agents.memory.memory import Memory
-from agents.base import Agent
-
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -18,9 +14,10 @@ class MADDPGAgent(Agent):
                  actor_factory: Callable,
                  critic_optimizer_factory: Callable,
                  actor_optimizer_factory: Callable,
+                 memory_factory: Callable,
                  num_learning_updates=10,
                  tau: float = 1e-2, batch_size: int = 512, update_frequency: int = 20,
-                 critic_grad_norm_clip: int = 1, policy_update_frequency: int = 1,
+                 critic_grad_norm_clip: int = 1, policy_update_frequency: int = 2,
                  ):
         """Initialize an Agent object.
 
@@ -31,6 +28,21 @@ class MADDPGAgent(Agent):
             seed (int): random seed
         """
         super().__init__(action_size=action_size, state_shape=state_shape, num_agents=num_agents)
+
+        self.seed = random.seed(seed)
+        self.n_seed = np.random.seed(seed)
+        self.num_agents = num_agents
+        self.update_frequency = update_frequency
+        self.tau = tau
+
+        self.batch_size = batch_size
+        self.num_learning_updates = num_learning_updates
+
+        self.critic_grad_norm_clip = critic_grad_norm_clip
+        self.policy_update_frequency = policy_update_frequency
+
+        # if self.policy is None:
+        self.policy = policy
 
         self.seed = random.seed(seed)
         self.n_seed = np.random.seed(seed)
@@ -47,20 +59,20 @@ class MADDPGAgent(Agent):
         self.policy = policy
 
         # critic local and target network (Q-Learning)
-        self.online_critic = critic_factory().to(device).train()
-        self.target_critic = critic_factory().to(device).eval()
+        self.online_critic = critic_factory().to(device)
+        self.target_critic = critic_factory().to(device)
         self.target_critic.load_state_dict(self.online_critic.state_dict())
 
         # actor local and target network (Policy gradient)
-        self.online_actor = actor_factory().to(device).train()
-        self.target_actor = actor_factory().to(device).eval()
+        self.online_actor = actor_factory().to(device)
+        self.target_actor = actor_factory().to(device)
         self.target_actor.load_state_dict(self.online_actor.state_dict())
 
         # optimizer for critic and actor network
         self.critic_optimizer = critic_optimizer_factory(self.online_critic.parameters())
         self.actor_optimizer = actor_optimizer_factory(self.online_actor.parameters())
         # Replay memory
-        self.memory = Memory(buffer_size=int(1e6), seed=0)
+        self.memory = memory_factory()
 
     def set_mode(self, mode: str):
         if mode == 'train':
@@ -133,8 +145,6 @@ class MADDPGAgent(Agent):
             self.actor_optimizer.zero_grad()
             actor_loss.backward()
             self.actor_optimizer.step()
-
-            self.tau = min(5e-1, self.tau * 1.001)
 
             # Update target networks
             soft_update(self.online_critic, self.target_critic, self.tau)

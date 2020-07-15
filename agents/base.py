@@ -9,7 +9,6 @@ from tools.parameter_capture import ParameterCapture
 class Agent:
     """ An agent which received state & reward from, and interacts with, and environment"""
     def __init__(self, state_shape: Union[Tuple[int, ...], int], action_size: int, num_agents: int):
-        super().__init__()
         self.state_shape = state_shape
         self.action_size = action_size
         self.num_agents = num_agents

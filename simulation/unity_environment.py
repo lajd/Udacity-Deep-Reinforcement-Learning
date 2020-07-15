@@ -11,7 +11,6 @@ import random
 import matplotlib.pyplot as plt
 from unityagents.brain import BrainInfo
 from tools.rl_constants import Experience, Environment, Brain, BrainSet
-from tools.rl_constants import Action
 from tools.scores import Scores
 plt.style.use('ggplot')
 np.set_printoptions(precision=3, linewidth=120)
@@ -61,13 +60,12 @@ class UnityEnvironmentSimulator:
                 raise ValueError("Invalid observation_type {}".format(brain.observation_type))
 
             states = brain.preprocess_state_fn(states)
-            states = torch.from_numpy(states).float().to(device)
+            states = torch.from_numpy(states).to(device).float()
 
             brain_states[brain_name] = states
         return brain_states
 
     def step(self, brain_set: BrainSet, brain_states: dict, random_actions: bool = False):
-
         if random_actions:
             brain_actions = brain_set.get_random_actions(brain_states)
         else:

@@ -8,7 +8,6 @@ from torch.optim.lr_scheduler import _LRScheduler
 from torch.optim.optimizer import Optimizer
 from tools.misc import soft_update
 import torch
-from tools.rl_constants import Action
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # torch.autograd.set_detect_anomaly(True)
@@ -172,7 +171,7 @@ class DDPGAgent:
                     priorities = critic_errors.detach().cpu().numpy()
                     DDPGAgent.memory.update(experience_batch.sample_idxs, priorities)
 
-    def get_action(self, state: torch.Tensor, add_noise=True) -> Action:
+    def get_action(self, state: torch.Tensor, add_noise=True) -> np.ndarray:
         """Returns actions for given state as per current policy."""
         state = state.to(device)
         action = DDPGAgent.policy.get_action(state, DDPGAgent.online_actor, add_noise)

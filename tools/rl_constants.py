@@ -1,6 +1,6 @@
 import torch
 from collections import namedtuple
-from typing import List, Union, Optional, Dict, Callable
+from typing import List, Union, Optional, Dict, Callable, Tuple
 import numpy as np
 # from agents.base import Agent
 from tools.scores import Scores
@@ -105,12 +105,6 @@ class ExperienceBatch:
         return len(self.states)
 
 
-class Action:
-    def __init__(self, value: Union[int, float, list, np.ndarray], distribution: Optional[np.array] = None):
-        self.value = value
-        self.distribution = distribution
-
-
 class Trajectories:
     def __init__(self, policy_outputs: Union[list, np.ndarray], states: Union[list, np.ndarray], actions: Union[list, np.ndarray], rewards: Union[list, np.ndarray]):
         self.policy_outputs = policy_outputs
@@ -180,3 +174,32 @@ class BrainSet:
     def __iter__(self):
         for brain_name, brain in self.brain_map.items():
             yield brain_name, brain
+
+
+class RandomBrainAction:
+    def __init__(self, action_dim: int, num_agents: int, continuous_actions: bool = True,
+                 continuous_action_range: Tuple[float, float] = (-1, 1),
+                 discrete_action_range: Tuple[int, int] = (0, 1)):
+        self.action_dim = action_dim
+        self.num_agents = num_agents
+        self.continuous_actions = continuous_actions
+        self.continuous_action_range = continuous_action_range
+        self.discrete_action_range = discrete_action_range
+
+    def sample(self) -> np.ndarray:
+        if self.continuous_actions:
+            uniform_distribution = torch.distributions.uniform.Uniform(*self.continuous_action_range)
+            sample = uniform_distribution.sample((self.num_agents, self.action_dim)).cpu().numpy()
+            return sample
+        else:
+            return np.random.random_integers(
+                self.discrete_action_range[0],
+                self.discrete_action_range[1],
+                (self.num_agents, self.action_dim)
+            )
+            # # Assume discrete actions are all zeros with a single 1
+            # sample = np.zeros((self.num_agents, self.action_dim))
+            # unit_dimensions = np.random.random_integers(0, self.action_dim - 1, self.num_agents)
+            # for i, j in enumerate(unit_dimensions):
+            #     sample[i][j] = 1
+            # return sample

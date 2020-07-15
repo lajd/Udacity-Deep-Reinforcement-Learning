@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 from agents.policies.base_policy import Policy
-from tools.rl_constants import Action
 
 
 class SoftmaxPolicy(Policy):

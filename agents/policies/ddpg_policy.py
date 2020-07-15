@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from typing import Optional, Tuple
 from tools.misc import set_seed
-from tools.rl_constants import ExperienceBatch, Action
+from tools.rl_constants import ExperienceBatch
 from tools.parameter_decay import ParameterScheduler
 import torch.nn.functional as F
 
@@ -15,6 +15,7 @@ class DDPGPolicy:
             self,
             noise,
             action_dim: int,
+            num_agents: int,
             gamma: float = 0.99,
             seed: Optional[int] = None,
             action_range: Tuple[float, float] = (-1, 1)
@@ -22,6 +23,8 @@ class DDPGPolicy:
 
         if seed:
             self.set_seed(seed)
+
+        self.num_agents = num_agents
         self.gamma = gamma
         self.noise = noise
         self.action_range = action_range
@@ -48,8 +51,7 @@ class DDPGPolicy:
 
     def get_random_action(self, *args) -> np.ndarray:
         """ Get a random action (used for warmup) """
-        return torch.distributions.uniform.Uniform(*self.action_range).sample(torch.Size((1, self.action_dim))).numpy()
-        # return Action(value=torch.distributions.uniform.Uniform(*self.action_range).sample(torch.Size((1, self.action_dim))))
+        return torch.distributions.uniform.Uniform(*self.action_range).sample(torch.Size((self.num_agents, self.action_dim))).numpy()
 
     def compute_actor_errors(self, experience_batch: ExperienceBatch, online_actor, target_actor, target_critic, online_critic) -> tuple:
         """ Compute the error and loss of the actor"""

@@ -28,7 +28,7 @@ LR_ACTOR = 1e-4  # learning rate of the actor
 LR_CRITIC = 1e-4  # learning rate of the critic
 POLICY_UPDATE_FREQUENCY = 1
 
-SOLVE_SCORE = 30
+SOLVE_SCORE = 1
 SAVE_TAG = 'ddpg_baseline'
 ACTOR_CHECKPOINT = os.path.join(SOLUTIONS_CHECKPOINT_DIR, f'{SAVE_TAG}_actor_checkpoint.pth')
 CRITIC_CHECKPOINT = os.path.join(SOLUTIONS_CHECKPOINT_DIR, f'{SAVE_TAG}_critic_checkpoint.pth')
@@ -49,7 +49,7 @@ def get_agent(memory_):
         critic_optimizer_factory=lambda critic: torch.optim.Adam(critic.parameters(), lr=LR_CRITIC, weight_decay=CRITIC_WEIGHT_DECAY),
         critic_optimizer_scheduler=lambda x: DummyLRScheduler(x),  # Since using ADAM
         actor_optimizer_scheduler=lambda x: DummyLRScheduler(x),  # Since using ADAM
-        policy_factory=lambda: DDPGPolicy(action_dim=ACTION_SIZE, noise=OUNoise(size=ACTION_SIZE, seed=SEED), seed=SEED),
+        policy_factory=lambda: DDPGPolicy(action_dim=ACTION_SIZE, num_agents=NUM_AGENTS, noise=OUNoise(size=ACTION_SIZE, seed=SEED), seed=SEED),
         update_frequency=UPDATE_FREQUENCY,
         n_learning_iterations=N_LEARNING_ITERATIONS,
         batch_size=BATCH_SIZE,
@@ -84,6 +84,6 @@ if __name__ == '__main__':
         brain = brain_set[BRAIN_NAME]
         trained_agent = brain.agent
         torch.save(trained_agent.online_actor.state_dict(), ACTOR_CHECKPOINT)
-        torch.save(trained_agent.online_critic.state_dict(), ACTOR_CHECKPOINT)
+        torch.save(trained_agent.online_critic.state_dict(), CRITIC_CHECKPOINT)
         with open(TRAINING_SCORES_SAVE_PATH, 'wb') as f:
             pickle.dump(training_scores, f)

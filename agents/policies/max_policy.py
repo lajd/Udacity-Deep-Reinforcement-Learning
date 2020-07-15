@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 from agents.policies.base_policy import Policy
-from tools.rl_constants import Action
 
 
 class MaxPolicy(Policy):
@@ -22,5 +21,4 @@ class MaxPolicy(Policy):
         model.train()
 
         action = action_values.max(1)[1].cpu().numpy()
-        # action = Action(value=int(action_values.max(1)[1].data[0]), distribution=None)
         return action

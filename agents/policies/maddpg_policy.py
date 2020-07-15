@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from typing import Optional, Tuple
 from tools.misc import set_seed
-from tools.rl_constants import ExperienceBatch, Action
+from tools.rl_constants import ExperienceBatch, RandomBrainAction
 from tools.parameter_decay import ParameterScheduler
 import torch.nn.functional as F
 
@@ -16,9 +16,11 @@ class MADDPGPolicy:
             noise_factory,
             num_agents,
             action_dim: int,
+            continuous_actions: bool = True,
             gamma: float = 0.99,
             seed: Optional[int] = None,
-            action_range: Tuple[float, float] = (-1, 1)
+            continuous_action_range: Tuple[float, float] = (-1, 1),
+            discrete_action_range: Tuple[int, int] = (0, 1)
     ):
 
         if seed:
@@ -27,8 +29,15 @@ class MADDPGPolicy:
         self.agent_noise = [noise_factory() for _ in range(num_agents)]
         self.num_agents = num_agents
         # self.noise = noise
-        self.action_range = action_range
         self.action_dim = action_dim
+
+        self.random_action_generator = RandomBrainAction(
+            action_dim,
+            num_agents,
+            continuous_actions=continuous_actions,
+            continuous_action_range=continuous_action_range,
+            discrete_action_range=discrete_action_range
+        )
 
         self.t_step = 0
         self.n_step = 0
@@ -62,15 +71,11 @@ class MADDPGPolicy:
                 action = np.clip(actions.cpu().data.numpy(), -1, 1)  # epsilon greedy policy
         else:
             action = actions.cpu().data.numpy()
-        # action = Action(value=action)
         return action
 
     def get_random_action(self, *args) -> np.ndarray:
         """ Get a random action (used for warmup) """
-        uniform_distribution = torch.distributions.uniform.Uniform(*self.action_range)
-        sample = uniform_distribution.sample((self.num_agents, self.action_dim))
-        return sample
-        # return Action(value=sample)
+        return self.random_action_generator.sample()
 
     def compute_actor_errors(self, experience_batch: ExperienceBatch, online_actor, target_actor, target_critic, online_critic) -> tuple:
         """ Compute the error and loss of the actor"""

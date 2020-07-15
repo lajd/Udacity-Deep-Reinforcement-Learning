@@ -17,11 +17,12 @@ class TD3Policy(DDPGPolicy):
             self,
             noise: Noise,
             action_dim: int,
+            num_agents: int,
             gamma: float = 0.99,
             seed: Optional[int] = None,
             action_range: Tuple[int, int] = (-1, 1),
     ):
-        super().__init__(action_dim=action_dim, noise=noise, gamma=gamma, seed=seed, action_range=action_range)
+        super().__init__(action_dim=action_dim, num_agents=num_agents, noise=noise, gamma=gamma, seed=seed, action_range=action_range)
         self.gaussian_noise = GaussianNoise()
 
     def compute_actor_errors(self, experience_batch: ExperienceBatch, online_actor, target_actor, target_critic, online_critic) -> tuple:

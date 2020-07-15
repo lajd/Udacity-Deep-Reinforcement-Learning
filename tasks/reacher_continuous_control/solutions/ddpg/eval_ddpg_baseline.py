@@ -5,9 +5,10 @@ from agents.policies.ddpg_policy import DDPGPolicy
 from agents.models.components.noise import OUNoise
 from agents.memory.memory import Memory
 from agents.models.ddpg import Actor, Critic
-from tasks.reacher_continuous_control.solutions.utils import get_simulator, STATE_SIZE, ACTION_SIZE
+from tasks.reacher_continuous_control.solutions.utils import get_simulator, STATE_SIZE, ACTION_SIZE, BRAIN_NAME
 from tasks.reacher_continuous_control.solutions.ddpg import SOLUTIONS_CHECKPOINT_DIR
 from tools.lr_schedulers import DummyLRScheduler
+from tools.rl_constants import Brain, BrainSet
 import pickle
 
 NUM_AGENTS = 20
@@ -33,10 +34,11 @@ CRITIC_CHECKPOINT = os.path.join(SOLUTIONS_CHECKPOINT_DIR, '{}_critic_checkpoint
 
 def get_solution_brain_set(actor_network: torch.nn.Module, critic_network: torch.nn.Module):
     """ Return an agent with shared memory, actor, critic and optimizers"""
-    return DDPGAgent(
+    solution_agent = DDPGAgent(
         state_size=STATE_SIZE,
         action_size=ACTION_SIZE,
         random_seed=SEED,
+        num_agents=NUM_AGENTS,
         memory_factory=lambda: memory,
         actor_model_factory=lambda: actor_network,
         critic_model_factory=lambda: critic_network,
@@ -53,6 +55,18 @@ def get_solution_brain_set(actor_network: torch.nn.Module, critic_network: torch
         policy_update_frequency=POLICY_UPDATE_FREQUENCY,
     )
 
+    reacher_solution_brain = Brain(
+        brain_name=BRAIN_NAME,
+        action_size=ACTION_SIZE,
+        state_shape=STATE_SIZE,
+        observation_type='vector',
+        agent=solution_agent,
+        num_agents=NUM_AGENTS
+    )
+
+    brain_set_ = BrainSet(brains=[reacher_solution_brain])
+    return brain_set_
+
 
 if __name__ == '__main__':
 
@@ -66,6 +80,6 @@ if __name__ == '__main__':
 
     simulator = get_simulator()
 
-    agents = [get_solution_brain_set(actor, critic) for _ in range(NUM_AGENTS)]
+    brain_set = get_solution_brain_set(actor, critic)
 
-    agents, average_score = simulator.evaluate(agents, n_episodes=1, max_t=MAX_T)
+    brain_set, average_score = simulator.evaluate(brain_set, n_episodes=1, max_t=MAX_T)

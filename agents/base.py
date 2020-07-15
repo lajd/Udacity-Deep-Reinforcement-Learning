@@ -4,7 +4,7 @@ import numpy as np
 from typing import Tuple
 from agents.policies.base_policy import Policy
 from torch.optim.lr_scheduler import _LRScheduler
-from tools.rl_constants import Experience, Action
+from tools.rl_constants import Experience
 from tools.parameter_capture import ParameterCapture
 
 

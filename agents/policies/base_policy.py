@@ -4,7 +4,7 @@ from abc import abstractmethod
 import torch.nn.functional as F
 from typing import Optional
 from tools.misc import set_seed
-from tools.rl_constants import Action, ExperienceBatch
+from tools.rl_constants import ExperienceBatch
 
 
 class Policy:
@@ -40,7 +40,7 @@ class Policy:
     # Acts with an ε-greedy policy (used for evaluation)
     def get_action_e_greedy(self, state: np.array, model: torch.nn.Module, epsilon=0.001) -> np.ndarray:  # High ε can reduce evaluation scores drastically
         if np.random.random() < epsilon:
-            action = Action(value=np.random.choice(self.actions), distribution=None)
+            action = np.array(np.random.choice(self.actions))
         else:
             action = self.get_action(state, model)
         return action

@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from tools.rl_constants import Experience, Brain, BrainSet
 from tasks.tennis.solutions.utils import STATE_SIZE, ACTION_SIZE, NUM_AGENTS, BRAIN_NAME, get_simulator
-from agents.maddpg_agent import HomogeneousMADDPGAgent
+from agents.maddpg_agent import MADDPGAgent
 from tasks.tennis.solutions.maddpg import SOLUTIONS_CHECKPOINT_DIR
 from agents.policies.maddpg_policy import MADDPGPolicy
 from tools.misc import LinearSchedule
@@ -28,7 +28,7 @@ def step_agents_fn(brain_set: BrainSet, next_brain_environment: dict, t: int):
         for i in range(brain_set[brain_name].num_agents):
             joint_state = torch.cat((brain_environment['states'][i], brain_environment['states'][1 - i]))
             joint_action = np.concatenate((brain_environment['actions'][i], brain_environment['actions'][1 - i]))
-            join_next_state = np.concatenate((brain_environment['next_states'][i], brain_environment['next_states'][1 - i]))
+            join_next_state = torch.cat((brain_environment['next_states'][i], brain_environment['next_states'][1 - i]))
 
             brain_agent_experience = Experience(
                 state=brain_environment['states'][i],
@@ -39,7 +39,7 @@ def step_agents_fn(brain_set: BrainSet, next_brain_environment: dict, t: int):
                 t_step=t,
                 joint_state=joint_state,
                 joint_action=torch.from_numpy(joint_action),
-                joint_next_state=torch.from_numpy(join_next_state)
+                joint_next_state=join_next_state
             )
             brain_set[brain_name].agent.step(brain_agent_experience)
 
@@ -55,8 +55,8 @@ if __name__ == '__main__':
         num_agents=NUM_AGENTS
     )
 
-    homogeneous_maddpg_agent = HomogeneousMADDPGAgent(
-        policy, STATE_SIZE, ACTION_SIZE, num_homogeneous_agents=NUM_AGENTS,
+    homogeneous_maddpg_agent = MADDPGAgent(
+        policy, STATE_SIZE, ACTION_SIZE, num_agents=NUM_AGENTS,
         fc1=400, fc2=300, seed=0,
     )
 

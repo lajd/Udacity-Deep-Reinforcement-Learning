@@ -124,20 +124,9 @@ class Actor(nn.Module):
         return x
 
 
-# next_brain_environment = {
-#     'a': {
-#         'states': torch.rand(512, 24),
-#     },
-#     'b': {
-#         'states': torch.rand(512, 24),
-#     },
-# }
-#
-# for brain_name, brain_environment in next_brain_environment.items():
-#     joint_state = torch.cat((brain_environment['states'][i], brain_environment['states'][1 - i]))
-
-
 def step_agents_fn(brain_set: BrainSet, next_brain_environment: dict, t: int):
+    import time
+    t1 = time.time()
     for brain_name, brain_environment in next_brain_environment.items():
         num_agents = brain_set[brain_name].num_agents
         for agent_number in range(num_agents):
@@ -159,6 +148,8 @@ def step_agents_fn(brain_set: BrainSet, next_brain_environment: dict, t: int):
                 joint_next_state=join_next_state
             )
             brain_set[brain_name].agent.step(brain_agent_experience, agent_number=agent_number)
+    t2 = time.time()
+    print(t2-t1)
 
 
 if __name__ == '__main__':

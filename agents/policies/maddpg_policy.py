@@ -27,7 +27,7 @@ class MADDPGPolicy:
         if seed:
             self.set_seed(seed)
         self.gamma = gamma
-        self.agent_noise = [noise_factory() for _ in range(num_agents)]
+        self.noise = noise_factory()
         self.num_agents = num_agents
         # self.noise = noise
         self.action_dim = action_dim
@@ -47,42 +47,63 @@ class MADDPGPolicy:
     def set_seed(seed: int):
         set_seed(seed)
 
+    def step(self, episode_number: int):
+        pass
+
     def step_episode(self, episode: int):
         """ Perform any end-of-episode updates """
-        for i in range(self.num_agents):
-            self.agent_noise[i].reset()
+        self.noise.reset()
 
-    def get_action(self, state: torch.Tensor, online_actor: torch.nn.Module, with_noise: bool = True, training: bool = False) -> np.ndarray:
+    def get_action(self, state: torch.Tensor, online_actor: torch.nn.Module, training: bool = True) -> np.ndarray:
         """Returns actions for given state as per current policy."""
-        assert state.shape[0] == self.num_agents, state.shape[0]
-
-        self.n_step += 1
-        epsilon = max((1500 - self.n_step) / 1500, .01)
-
-        def get_actions_():
-            online_actor.eval()
-            with torch.no_grad():
-                actions_ = online_actor(state)
-            online_actor.train()
-            return actions_
+        online_actor.eval()
+        with torch.no_grad():
+            action = online_actor(state)
+        online_actor.train()
 
         if training:
-            r = np.random.random()
-            if r <= epsilon:
-                action = self.random_action_generator.sample()
-                # action = np.random.uniform(-1, 1, (self.num_agents, self.action_dim))
-                # print(action)
-            else:
-                action = get_actions_().cpu().data.numpy()
-                if self.random_action_generator.continuous_actions:
-                    action = np.clip(
-                        action,
-                        self.random_action_generator.continuous_action_range[0],
-                        self.random_action_generator.continuous_action_range[1],
-                    )  # epsilon greedy policy
-        else:
-            action = get_actions_().cpu().data.numpy()
+            action += self.noise.sample(action)
+
+        if self.random_action_generator.continuous_actions:
+            action = np.clip(
+                action,
+                self.random_action_generator.continuous_action_range[0],
+                self.random_action_generator.continuous_action_range[1],
+            )  # epsilon greedy policy
+        action = action.cpu().data.numpy()
         return action
+
+    # def get_action(self, state: torch.Tensor, online_actor: torch.nn.Module, training: bool = False) -> np.ndarray:
+    #     """Returns actions for given state as per current policy."""
+    #     assert state.shape[0] == self.num_agents, state.shape[0]
+    #
+    #     self.n_step += 1
+    #     epsilon = max((1500 - self.n_step) / 1500, .01)
+    #
+    #     def get_actions_():
+    #         online_actor.eval()
+    #         with torch.no_grad():
+    #             actions_ = online_actor(state)
+    #         online_actor.train()
+    #         return actions_
+    #
+    #     if training:
+    #         r = np.random.random()
+    #         if r <= epsilon:
+    #             action = self.random_action_generator.sample()
+    #             # action = np.random.uniform(-1, 1, (self.num_agents, self.action_dim))
+    #             # print(action)
+    #         else:
+    #             action = get_actions_().cpu().data.numpy()
+    #             if self.random_action_generator.continuous_actions:
+    #                 action = np.clip(
+    #                     action,
+    #                     self.random_action_generator.continuous_action_range[0],
+    #                     self.random_action_generator.continuous_action_range[1],
+    #                 )  # epsilon greedy policy
+    #     else:
+    #         action = get_actions_().cpu().data.numpy()
+    #     return action
 
     def get_random_action(self, *args) -> np.ndarray:
         """ Get a random action (used for warmup) """

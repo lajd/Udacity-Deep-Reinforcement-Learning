@@ -188,8 +188,9 @@ class RandomBrainAction:
 
     def sample(self) -> np.ndarray:
         if self.continuous_actions:
-            uniform_distribution = torch.distributions.uniform.Uniform(*self.continuous_action_range)
-            sample = uniform_distribution.sample((self.num_agents, self.action_dim)).cpu().numpy()
+            # uniform_distribution = torch.distributions.uniform.Uniform(*self.continuous_action_range)
+            # sample = uniform_distribution.sample((self.num_agents, self.action_dim)).cpu().numpy()
+            sample = np.random.uniform(self.continuous_action_range[0], self.continuous_action_range[1], (self.num_agents, self.action_dim))
             return sample
         else:
             return np.random.random_integers(

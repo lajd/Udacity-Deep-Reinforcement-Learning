@@ -59,19 +59,29 @@ class MADDPGPolicy:
         self.n_step += 1
         epsilon = max((1500 - self.n_step) / 1500, .01)
 
-        online_actor.eval()
-        with torch.no_grad():
-            actions = online_actor(state)
-        online_actor.train()
+        def get_actions_():
+            online_actor.eval()
+            with torch.no_grad():
+                actions_ = online_actor(state)
+            online_actor.train()
+            return actions_
 
         if training:
             r = np.random.random()
             if r <= epsilon:
-                action = np.random.uniform(-1, 1, (self.num_agents, self.action_dim))
+                action = self.random_action_generator.sample()
+                # action = np.random.uniform(-1, 1, (self.num_agents, self.action_dim))
+                # print(action)
             else:
-                action = np.clip(actions.cpu().data.numpy(), -1, 1)  # epsilon greedy policy
+                action = get_actions_().cpu().data.numpy()
+                if self.random_action_generator.continuous_actions:
+                    action = np.clip(
+                        action,
+                        self.random_action_generator.continuous_action_range[0],
+                        self.random_action_generator.continuous_action_range[1],
+                    )  # epsilon greedy policy
         else:
-            action = actions.cpu().data.numpy()
+            action = get_actions_().cpu().data.numpy()
         return action
 
     def get_random_action(self, *args) -> np.ndarray:
@@ -91,11 +101,11 @@ class MADDPGPolicy:
         #     action_pr_other = online_actor(all_other_agent_joint_next_states).detach()
         # else:
 
-        expanded_joint_next_states = experience_batch.joint_next_states.view(batch_size * self.num_agents, -1)
+        expanded_joint_next_states = experience_batch.joint_next_states.view(batch_size * self.num_agents, -1).float()
 
-        all_other_agent_states = torch.stack([row for i, row in enumerate(expanded_joint_next_states) if i % self.num_agents != 0])
+        all_other_agent_states = torch.stack([row for i, row in enumerate(expanded_joint_next_states) if i % self.num_agents != 0]).float()
 
-        action_pr_other = online_actor(all_other_agent_states).detach()
+        action_pr_other = online_actor(all_other_agent_states).detach().float()
 
         critic_local_input2 = torch.cat((experience_batch.joint_states, action_pr_other), dim=1)
         actor_errors = -online_critic(critic_local_input2, action_pr_self)
@@ -142,6 +152,10 @@ class MADDPGPolicy:
 
         critic_target_input = torch.cat((experience_batch.joint_next_states, all_other_agent_actions.float()), dim=1).to(
             device)
+
+        # print("experience_batch.joint_next_states shape:: {}, all_other_agent_actions shape:: {}".format(experience_batch.joint_next_states.shape, all_other_agent_actions.shape))
+        #
+        # print("all_agent_actions shape:: {}".format(all_agent_actions.shape))
 
         with torch.no_grad():
             q_target_next = target_critic(critic_target_input, all_agent_actions)

@@ -4,6 +4,7 @@ from tools.misc import *
 from tools.rl_constants import Experience, ExperienceBatch
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+torch.autograd.set_detect_anomaly(True)
 
 
 class MADDPGAgent(Agent):
@@ -58,13 +59,13 @@ class MADDPGAgent(Agent):
         self.policy = policy
 
         # critic local and target network (Q-Learning)
-        self.online_critic = critic_factory().to(device)
-        self.target_critic = critic_factory().to(device)
+        self.online_critic = critic_factory().to(device).float()
+        self.target_critic = critic_factory().to(device).float()
         self.target_critic.load_state_dict(self.online_critic.state_dict())
 
         # actor local and target network (Policy gradient)
-        self.online_actor = actor_factory().to(device)
-        self.target_actor = actor_factory().to(device)
+        self.online_actor = actor_factory().to(device).float()
+        self.target_actor = actor_factory().to(device).float()
         self.target_actor.load_state_dict(self.online_actor.state_dict())
 
         # optimizer for critic and actor network

@@ -65,6 +65,8 @@ class Critic(nn.Module):
     def forward(self, input_, action):
         """Build a network that maps state & action to action values."""
         action = action.float()
+        # print("input_.shape: {}".format(input_.shape))
+
         x = self.bn(input_)
         x = F.relu(self.bn2(self.fc1(x)))
         x = torch.cat([x, action], dim=1)

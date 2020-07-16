@@ -12,7 +12,7 @@ BRAIN_NAME = 'TennisBrain'
 
 def get_simulator():
     observation_type = 'vector'
-    environment_name = "Tennis.app"
+    environment_name = "Tennis_Linux/Tennis.x86_64"
     # Initialize the simulator
     env = UnityEnvironment(file_name=join(ENVIRONMENTS_DIR, environment_name))
     simulator = UnityEnvironmentSimulator(

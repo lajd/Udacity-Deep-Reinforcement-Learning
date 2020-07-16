@@ -34,23 +34,26 @@ SEED = 0
 
 def step_agents_fn(brain_set: BrainSet, next_brain_environment: dict, t: int):
     for brain_name, brain_environment in next_brain_environment.items():
-        for i in range(brain_set[brain_name].num_agents):
-            joint_state = torch.cat((brain_environment['states'][i], brain_environment['states'][1 - i]))
-            joint_action = np.concatenate((brain_environment['actions'][i], brain_environment['actions'][1 - i]))
-            join_next_state = torch.cat((brain_environment['next_states'][i], brain_environment['next_states'][1 - i]))
+        num_agents = brain_set[brain_name].num_agents
+        for agent_number in range(num_agents):
+            i = agent_number
+            joint_state = torch.cat((brain_environment['states'][i], *[brain_environment['states'][j] for j in range(num_agents) if j != i]))
+            joint_action = np.concatenate((brain_environment['actions'][i], *[brain_environment['actions'][j] for j in range(num_agents) if j != i]))
+            join_next_state = torch.cat((brain_environment['next_states'][i], *[brain_environment['next_states'][j] for j in range(num_agents) if j != i]))
 
+            # print("join_next_state shape: {}".format(join_next_state.shape))
             brain_agent_experience = Experience(
-                state=brain_environment['states'][i],
-                action=brain_environment['actions'][i],
-                reward=brain_environment['rewards'][i],
-                next_state=brain_environment['next_states'][i],
-                done=brain_environment['dones'][i],
+                state=brain_environment['states'][agent_number],
+                action=brain_environment['actions'][agent_number],
+                reward=brain_environment['rewards'][agent_number],
+                next_state=brain_environment['next_states'][agent_number],
+                done=brain_environment['dones'][agent_number],
                 t_step=t,
                 joint_state=joint_state,
                 joint_action=torch.from_numpy(joint_action),
                 joint_next_state=join_next_state
             )
-            brain_set[brain_name].agent.step(brain_agent_experience)
+            brain_set[brain_name].agent.step(brain_agent_experience, agent_number=agent_number)
 
 
 if __name__ == '__main__':

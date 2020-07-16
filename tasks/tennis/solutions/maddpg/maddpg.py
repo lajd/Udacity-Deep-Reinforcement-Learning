@@ -15,6 +15,7 @@ from tools.misc import LinearSchedule
 from agents.models.components import noise as rm
 # from tools.misc import *
 from agents.memory.memory import Memory
+from conf import TEST
 
 SAVE_TAG = 'homogeneous_maddpg_baseline'
 ACTOR_CHECKPOINT_FN = lambda brain_name: join(SOLUTIONS_CHECKPOINT_DIR, f'{brain_name}_{SAVE_TAG}_actor_checkpoint.pth')
@@ -30,6 +31,7 @@ BUFFER_SIZE = int(1e6)  # replay buffer size
 ACTOR_LR = 1e-3  # Actor network learning rate
 CRITIC_LR = 1e-4  # Actor network learning rate
 SEED = 0
+
 
 class Critic(nn.Module):
     """Actor (Policy) Model."""
@@ -120,20 +122,29 @@ class Actor(nn.Module):
         return x
 
 
+# next_brain_environment = {
+#     'a': {
+#         'states': torch.rand(512, 24),
+#     },
+#     'b': {
+#         'states': torch.rand(512, 24),
+#     },
+# }
+#
+# for brain_name, brain_environment in next_brain_environment.items():
+#     joint_state = torch.cat((brain_environment['states'][i], brain_environment['states'][1 - i]))
+
+
 def step_agents_fn(brain_set: BrainSet, next_brain_environment: dict, t: int):
     for brain_name, brain_environment in next_brain_environment.items():
-        # joint_state = brain_environment['states'].view(-1)
-        # joint_action = brain_environment['actions'].reshape(-1)
-        # join_next_state = brain_environment['next_states'].view(-1)
-        # # print(joint_state.shape, joint_action.shape, join_next_state.shape)
-
-        for agent_number in range(brain_set[brain_name].num_agents):
+        num_agents = brain_set[brain_name].num_agents
+        for agent_number in range(num_agents):
             i = agent_number
-            joint_state = torch.cat((brain_environment['states'][i], brain_environment['states'][1 - i]))
-            joint_action = np.concatenate((brain_environment['actions'][i], brain_environment['actions'][1 - i]))
-            join_next_state = torch.cat((brain_environment['next_states'][i], brain_environment['next_states'][1 - i]))
+            joint_state = torch.cat((brain_environment['states'][i], *[brain_environment['states'][j] for j in range(num_agents) if j != i]))
+            joint_action = np.concatenate((brain_environment['actions'][i], *[brain_environment['actions'][j] for j in range(num_agents) if j != i]))
+            join_next_state = torch.cat((brain_environment['next_states'][i], *[brain_environment['next_states'][j] for j in range(num_agents) if j != i]))
 
-            print("join_next_state shape: {}".format(join_next_state.shape))
+            # print("join_next_state shape: {}".format(join_next_state.shape))
             brain_agent_experience = Experience(
                 state=brain_environment['states'][agent_number],
                 action=brain_environment['actions'][agent_number],

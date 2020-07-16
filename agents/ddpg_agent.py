@@ -142,7 +142,7 @@ class DDPGAgent(Agent):
         """ Get a random action, used for warmup"""
         return self.policy.get_random_action()
 
-    def learn(self, experience_batch: ExperienceBatch) -> tuple:
+    def learn(self, experience_batch: ExperienceBatch, agent_number: int) -> tuple:
         """Update value parameters using given batch of experience tuples and return TD error
 
         Args:

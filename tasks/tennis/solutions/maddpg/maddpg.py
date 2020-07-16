@@ -309,9 +309,10 @@ def step_agents_fn(brain_set: BrainSet, next_brain_environment: dict, t: int):
         # print(joint_state.shape, joint_action.shape, join_next_state.shape)
 
         for agent_number in range(brain_set[brain_name].num_agents):
-            # joint_state = torch.cat((brain_environment['states'][i], brain_environment['states'][1 - i]))
-            # joint_action = np.concatenate((brain_environment['actions'][i], brain_environment['actions'][1 - i]))
-            # join_next_state = torch.cat((brain_environment['next_states'][i], brain_environment['next_states'][1 - i]))
+            i = agent_number
+            joint_state = torch.cat((brain_environment['states'][i], brain_environment['states'][1 - i]))
+            joint_action = np.concatenate((brain_environment['actions'][i], brain_environment['actions'][1 - i]))
+            join_next_state = torch.cat((brain_environment['next_states'][i], brain_environment['next_states'][1 - i]))
             #
             # print(joint_state.shape, joint_action.shape, join_next_state.shape)
 

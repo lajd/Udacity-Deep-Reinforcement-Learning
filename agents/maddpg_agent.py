@@ -28,22 +28,6 @@ class MADDPGAgent(Agent):
             seed (int): random seed
         """
         super().__init__(action_size=action_size, state_shape=state_shape, num_agents=num_agents)
-
-        self.seed = random.seed(seed)
-        self.n_seed = np.random.seed(seed)
-        self.num_agents = num_agents
-        self.update_frequency = update_frequency
-        self.tau = tau
-
-        self.batch_size = batch_size
-        self.num_learning_updates = num_learning_updates
-
-        self.critic_grad_norm_clip = critic_grad_norm_clip
-        self.policy_update_frequency = policy_update_frequency
-
-        # if self.policy is None:
-        self.policy = policy
-
         self.seed = random.seed(seed)
         self.n_seed = np.random.seed(seed)
         self.num_agents = num_agents

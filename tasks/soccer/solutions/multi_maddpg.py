@@ -27,11 +27,14 @@ TRAINING_SCORES_SAVE_PATH_FN = lambda brain_name: join(SOLUTIONS_CHECKPOINT_DIR,
 NUM_EPISODES = 1000
 MAX_T = 1000
 SOLVE_SCORE = 2
-WARMUP_STEPS = 1#5000
+WARMUP_STEPS = 5000
 BUFFER_SIZE = int(1e6)  # replay buffer size
 ACTOR_LR = 1e-3  # Actor network learning rate
 CRITIC_LR = 1e-4  # Actor network learning rate
 SEED = 0
+BATCH_SIZE = 32
+NUM_LEARNING_UPDATES = 1
+POLICY_UPDATE_FREQUENCY = 2
 
 
 class Critic(nn.Module):
@@ -155,7 +158,7 @@ def step_agents_fn(brain_set: BrainSet, next_brain_environment: dict, t: int):
             )
             brain_set[brain_name].agent.step(brain_agent_experience, agent_number=agent_number)
     t2 = time.time()
-    print(t2-t1)
+    # print(t2-t1)
 
 
 if __name__ == '__main__':
@@ -177,6 +180,9 @@ if __name__ == '__main__':
         critic_optimizer_factory=lambda parameters: optim.Adam(parameters, lr=CRITIC_LR, weight_decay=1.e-5),
         actor_optimizer_factory=lambda parameters: optim.Adam(parameters, lr=ACTOR_LR),
         memory_factory=lambda: Memory(buffer_size=BUFFER_SIZE, seed=SEED),
+        batch_size=BATCH_SIZE,
+        num_learning_updates=NUM_LEARNING_UPDATES,
+        policy_update_frequency=POLICY_UPDATE_FREQUENCY,
         seed=0,
     )
 
@@ -205,6 +211,9 @@ if __name__ == '__main__':
         critic_optimizer_factory=lambda parameters: optim.Adam(parameters, lr=CRITIC_LR, weight_decay=1.e-5),
         actor_optimizer_factory=lambda parameters: optim.Adam(parameters, lr=ACTOR_LR),
         memory_factory=lambda: Memory(buffer_size=BUFFER_SIZE, seed=SEED),
+        batch_size=BATCH_SIZE,
+        num_learning_updates=NUM_LEARNING_UPDATES,
+        policy_update_frequency=POLICY_UPDATE_FREQUENCY,
         seed=0,
     )
 

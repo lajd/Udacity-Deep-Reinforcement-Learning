@@ -2,7 +2,6 @@ from typing import Callable
 from agents.base import Agent
 from tools.misc import *
 from tools.rl_constants import Experience, ExperienceBatch
-from agents.memory.memory import Memory
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -95,12 +94,11 @@ class MADDPGAgent(Agent):
                 # If enough samples are available in memory, get random subset and learn
                 for i in range(self.num_learning_updates):
                     experiences = self.memory.sample(self.batch_size)
-                    self.learn(experiences)
+                    self.learn(experiences, kwargs['agent_number'])
 
     def step_episode(self, i_episode):
         # Reset the noise modules
         self.policy.step_episode(i_episode)
-        pass
 
     def get_action(self, state, training=True) -> np.ndarray:
         return self.policy.get_action(state, self.online_actor, training=training)
@@ -109,7 +107,7 @@ class MADDPGAgent(Agent):
         """ Get a random action, used for warmup"""
         return self.policy.get_random_action()
 
-    def learn(self, experience_batch: ExperienceBatch):
+    def learn(self, experience_batch: ExperienceBatch, agent_number: int):
 
         """Update value parameters using given batch of experience tuples.
         Params
@@ -125,6 +123,7 @@ class MADDPGAgent(Agent):
             online_critic=self.online_critic,
             target_actor=self.target_actor,
             target_critic=self.target_critic,
+            agent_number=agent_number
         )
 
         self.critic_optimizer.zero_grad()
@@ -140,6 +139,7 @@ class MADDPGAgent(Agent):
                 online_critic=self.online_critic,
                 target_actor=self.target_actor,
                 target_critic=self.target_critic,
+                agent_number=agent_number
             )
 
             self.actor_optimizer.zero_grad()

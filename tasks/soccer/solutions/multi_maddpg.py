@@ -14,6 +14,7 @@ from agents.policies.maddpg_policy import MADDPGPolicy
 from tools.misc import LinearSchedule
 from agents.models.components import noise as rm
 from tools.misc import *
+from agents.memory.memory import Memory
 
 SAVE_TAG = 'homogeneous_maddpg_baseline'
 ACTOR_CHECKPOINT_FN = lambda brain_name: join(SOLUTIONS_CHECKPOINT_DIR, f'{brain_name}_{SAVE_TAG}_actor_checkpoint.pth')
@@ -28,6 +29,7 @@ WARMUP_STEPS = 1#5000
 BUFFER_SIZE = int(1e6)  # replay buffer size
 ACTOR_LR = 1e-3  # Actor network learning rate
 CRITIC_LR = 1e-4  # Actor network learning rate
+SEED = 0
 
 
 def step_agents_fn(brain_set: BrainSet, next_brain_environment: dict, t: int):
@@ -65,10 +67,11 @@ if __name__ == '__main__':
         state_shape=GOALIE_STATE_SIZE,
         action_size=GOALIE_ACTION_SIZE,
         num_agents=NUM_GOALIE_AGENTS,
-        critic_factory=lambda: Critic(GOALIE_STATE_SIZE, GOALIE_STATE_SIZE, 400, 300, seed=1),
-        actor_factory=lambda: Actor(GOALIE_STATE_SIZE, GOALIE_ACTION_SIZE, 400, 300, seed=2, with_argmax=True),
+        critic_factory=lambda: Critic(GOALIE_STATE_SIZE, GOALIE_STATE_SIZE, 400, 300, seed=SEED),
+        actor_factory=lambda: Actor(GOALIE_STATE_SIZE, GOALIE_ACTION_SIZE, 400, 300, seed=SEED, with_argmax=True),
         critic_optimizer_factory=lambda parameters: optim.Adam(parameters, lr=CRITIC_LR, weight_decay=1.e-5),
         actor_optimizer_factory=lambda parameters: optim.Adam(parameters, lr=ACTOR_LR),
+        memory_factory=lambda: Memory(buffer_size=BUFFER_SIZE, seed=SEED),
         seed=0,
     )
 
@@ -92,10 +95,11 @@ if __name__ == '__main__':
         state_shape=STRIKER_STATE_SIZE,
         action_size=STRIKER_ACTION_SIZE,
         num_agents=NUM_STRIKER_AGENTS,
-        critic_factory=lambda: Critic(STRIKER_STATE_SIZE, STRIKER_ACTION_SIZE, 400, 300, seed=1),
-        actor_factory=lambda: Actor(STRIKER_STATE_SIZE, STRIKER_ACTION_SIZE, 400, 300, seed=2, with_argmax=True),
+        critic_factory=lambda: Critic(STRIKER_STATE_SIZE, STRIKER_ACTION_SIZE, 400, 300, seed=SEED),
+        actor_factory=lambda: Actor(STRIKER_STATE_SIZE, STRIKER_ACTION_SIZE, 400, 300, seed=SEED, with_argmax=True),
         critic_optimizer_factory=lambda parameters: optim.Adam(parameters, lr=CRITIC_LR, weight_decay=1.e-5),
         actor_optimizer_factory=lambda parameters: optim.Adam(parameters, lr=ACTOR_LR),
+        memory_factory=lambda: Memory(buffer_size=BUFFER_SIZE, seed=SEED),
         seed=0,
     )
 

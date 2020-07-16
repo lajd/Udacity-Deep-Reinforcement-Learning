@@ -77,33 +77,105 @@ class MADDPGPolicy:
         """ Get a random action (used for warmup) """
         return self.random_action_generator.sample()
 
-    def compute_actor_errors(self, experience_batch: ExperienceBatch, online_actor, target_actor, target_critic, online_critic) -> tuple:
+    def compute_actor_errors(self, experience_batch: ExperienceBatch, online_actor, target_actor, target_critic, online_critic, agent_number: int) -> tuple:
         """ Compute the error and loss of the actor"""
-        batch_size = len(experience_batch)
-        action_pr_self = online_actor(experience_batch.states)
-        action_pr_other = online_actor(experience_batch.joint_next_states.view(batch_size * 2, -1)[1::2]).detach()
+        # batch_size = len(experience_batch)
+        # action_pr_self = online_actor(experience_batch.states)
+        # action_pr_other = online_actor(experience_batch.joint_next_states.view(batch_size * 2, -1)[1::2]).detach()
 
-        critic_local_input2 = torch.cat((experience_batch.joint_states, action_pr_other), dim=1)
-        actor_errors = -online_critic(critic_local_input2, action_pr_self)
+        # # critic_local_input2 = torch.cat((experience_batch.joint_states, action_pr_other), dim=1)
+        # # actor_errors = -online_critic(critic_local_input2, action_pr_self)
+        # # actor_loss = actor_errors.mean()
+        #
+        # batch_size = len(experience_batch)
+        # # action_pr_self = online_actor(experience_batch.states)
+        # # action_pr_other = online_actor(experience_batch.joint_next_states.view(batch_size * self.num_agents, -1)).detach()
+        #
+        # # critic_local_input2 = torch.cat((experience_batch.joint_states, experience_batch.joint_actions.view(batch_size, -1)), dim=1)
+        # # critic
+
+        # actor_errors = -online_critic(experience_batch.joint_states, experience_batch.joint_actions)
+        # actor_loss = actor_errors.mean()
+
+        ####################################
+        online_actor(experience_batch.states)
+        q_input = [
+            online_actor(state) if i == agent_number else online_actor.actor(state).detach()
+            for i, state in enumerate(experience_batch.states)
+        ]
+
+        q_input = torch.cat(q_input, dim=1)
+        # combine all the actions and observations for input to critic
+        # many of the obs are redundant, and obs[1] contains all useful information already
+        q_input2 = torch.cat((experience_batch.states, q_input), dim=1)
+
+        # get the policy gradient
+        actor_errors = -online_critic(q_input2)
         actor_loss = actor_errors.mean()
         return actor_loss, actor_errors
 
-    def compute_critic_errors(self, experience_batch: ExperienceBatch, online_actor, target_actor, target_critic, online_critic) -> tuple:
+    def compute_critic_errors(self, experience_batch: ExperienceBatch, online_actor, target_actor, target_critic, online_critic, agent_number: int) -> tuple:
         """ Compute the error and loss of the critic"""
         batch_size = len(experience_batch)
-        all_next_actions = target_actor(experience_batch.joint_next_states.view(batch_size * 2, -1)).view(batch_size, -1)
-        critic_target_input = torch.cat((experience_batch.joint_next_states, all_next_actions.view(batch_size * 2, -1)[1::2].float()), dim=1).to(
-            device)
+        all_next_actions = target_actor(experience_batch.joint_next_states.view(batch_size * self.num_agents, -1))
+
+        print(all_next_actions.shape)
+        other_actions = torch.stack([action for i, action in enumerate(all_next_actions) if i != agent_number])
+
+        critic_target_input = torch.cat((experience_batch.joint_next_states, other_actions.float()), dim=1).to(device)
         with torch.no_grad():
-            q_target_next = target_critic(critic_target_input, all_next_actions.view(batch_size * 2, -1)[::2])
+            q_target_next = target_critic(critic_target_input, all_next_actions.view(batch_size * 2, -1))
+
         q_targets = experience_batch.rewards + (self.gamma * q_target_next * (1 - experience_batch.dones))
 
-        critic_local_input = torch.cat((experience_batch.joint_states, experience_batch.joint_actions.view(batch_size * 2, -1)[1::2]), dim=1).to(device)
+        current_other_actions = torch.stack([action for i, action in enumerate(experience_batch.joint_actions) if i != agent_number])
+        critic_local_input = torch.cat((experience_batch.joint_states, current_other_actions.view(batch_size * 2, -1)), dim=1).to(device)
         q_expected = online_critic(critic_local_input, experience_batch.actions)
 
         # critic loss
         huber_errors = torch.nn.SmoothL1Loss(reduction='none')
         td_errors = huber_errors(q_expected, q_targets.detach())
         critic_loss = td_errors.mean()
+
+        #############################
+        # all_next_actions = target_actor(experience_batch.joint_next_states.view(batch_size * self.num_agents,  -1))
+        # all_next_actions = all_next_actions.view(batch_size, -1)
+        # # critic_target_input = torch.cat(
+        # #     (
+        # #         experience_batch.joint_next_states,
+        # #         all_next_actions.view(batch_size, -1).float()
+        # #     ), dim=1).to(device)
+        #
+        # # print(experience_batch.joint_next_states.shape, all_next_actions.shape)
+        # with torch.no_grad():
+        #     q_target_next = target_critic(experience_batch.joint_next_states, all_next_actions)
+        #
+        # q_targets = experience_batch.rewards + (self.gamma * q_target_next * (1 - experience_batch.dones))
+        #
+        # # critic_local_input = torch.cat((experience_batch.joint_states, experience_batch.joint_actions.view(batch_size, -1)), dim=1).to(device)
+        # # print(experience_batch.joint_states.shape, experience_batch.joint_actions.shape)
+        #
+        # q_expected = online_critic(experience_batch.joint_states, experience_batch.joint_actions)
+
+        ##############################
+        # print('-----------')
+        #
+        # target_actions = target_actor(experience_batch.joint_next_states.view(batch_size, -1))
+        # # target_critic_input = torch.cat((experience_batch.joint_next_states, target_actions), dim=1).to(device)
+        # with torch.no_grad():
+        #     print(experience_batch.joint_next_states.shape, target_actions.shape)
+        #     q_target_next = target_critic(experience_batch.joint_next_states, target_actions.view(batch_size, -1))
+        #
+        # q_targets = experience_batch.rewards + (self.gamma * q_target_next * (1 - experience_batch.dones))
+        #
+        # # critic_local_input = torch.cat((experience_batch.joint_states, experience_batch.joint_actions.view(batch_size, -1)), dim=1).to(device)
+        # # print(experience_batch.joint_states.shape, experience_batch.joint_actions.shape)
+        #
+        # q_expected = online_critic(experience_batch.joint_states, experience_batch.joint_actions)
+        #
+        # # critic loss
+        # huber_errors = torch.nn.SmoothL1Loss(reduction='none')
+        # td_errors = huber_errors(q_expected, q_targets.detach())
+        # critic_loss = td_errors.mean()
 
         return critic_loss, td_errors

@@ -10,7 +10,7 @@ from tools.rl_constants import Experience, Brain, BrainSet
 from tasks.soccer.solutions.utils import STRIKER_STATE_SIZE, GOALIE_STATE_SIZE, NUM_STRIKER_AGENTS,\
     NUM_GOALIE_AGENTS, get_simulator, GOALIE_BRAIN_NAME, STRIKER_BRAIN_NAME, GOALIE_ACTION_SIZE, STRIKER_ACTION_SIZE, \
     GOALIE_ACTION_DISCRETE_RANGE, STRIKER_ACTION_DISCRETE_RANGE
-from agents.maddpg_agent import MADDPGAgent
+from agents.maddpg_agent import HomogeneousMADDPGAgent
 from tasks.tennis.solutions.maddpg import SOLUTIONS_CHECKPOINT_DIR
 from agents.policies.maddpg_policy import MADDPGPolicy
 from tools.misc import LinearSchedule
@@ -212,7 +212,7 @@ def step_agents_fn(brain_set: BrainSet, next_brain_environment: dict, t: int):
 if __name__ == '__main__':
     simulator = get_simulator()
 
-    goalie_maddpg_agent = MADDPGAgent(
+    goalie_maddpg_agent = HomogeneousMADDPGAgent(
         policy=MADDPGPolicy(
             noise_factory=lambda: rm.OrnsteinUhlenbeckProcess(size=(GOALIE_ACTION_SIZE,), std=LinearSchedule(0.4, 0, 2000)),
             action_dim=GOALIE_ACTION_SIZE,
@@ -244,7 +244,7 @@ if __name__ == '__main__':
         num_agents=NUM_GOALIE_AGENTS,
     )
 
-    striker_maddpg_agent = MADDPGAgent(
+    striker_maddpg_agent = HomogeneousMADDPGAgent(
         policy=MADDPGPolicy(
             noise_factory=lambda: rm.OrnsteinUhlenbeckProcess(size=(STRIKER_ACTION_SIZE,), std=LinearSchedule(0.4, 0, 2000)),
             action_dim=STRIKER_ACTION_SIZE,

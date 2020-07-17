@@ -7,7 +7,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 torch.autograd.set_detect_anomaly(True)
 
 
-class MADDPGAgent(Agent):
+class HomogeneousMADDPGAgent(Agent):
     """Interacts with and learns from the environment."""
     def __init__(self, policy, state_shape, action_size, num_agents, seed,
                  critic_factory: Callable,

@@ -8,7 +8,7 @@ from torch.nn import functional as F
 import torch.optim as optim
 from tools.rl_constants import Experience, Brain, BrainSet
 from tasks.tennis.solutions.utils import STATE_SIZE, ACTION_SIZE, NUM_AGENTS, BRAIN_NAME, get_simulator
-from agents.maddpg_agent import MADDPGAgent
+from agents.maddpg_agent import HomogeneousMADDPGAgent
 from tasks.tennis.solutions.maddpg import SOLUTIONS_CHECKPOINT_DIR
 from agents.policies.maddpg_policy import MADDPGPolicy
 from tools.misc import LinearSchedule
@@ -164,7 +164,7 @@ if __name__ == '__main__':
         epsilon_scheduler=ParameterScheduler(initial=1, lambda_fn=lambda i: 0.95 ** i, final=0.01),
     )
 
-    homogeneous_maddpg_agent = MADDPGAgent(
+    homogeneous_maddpg_agent = HomogeneousMADDPGAgent(
         policy, STATE_SIZE, ACTION_SIZE, num_agents=NUM_AGENTS,
         critic_factory=lambda: Critic(STATE_SIZE, ACTION_SIZE, 400, 300, seed=SEED),
         actor_factory=lambda: Actor(STATE_SIZE, ACTION_SIZE, 400, 300, seed=SEED),

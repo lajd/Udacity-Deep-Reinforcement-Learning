@@ -27,7 +27,7 @@ class MADDPGPolicy:
             self.set_seed(seed)
         self.gamma = gamma
         self.noise = noise_factory()
-        self.num_agents = num_agents
+        self.num_agents = 4 #num_agents
         self.action_dim = action_dim
 
         self.epsilon_scheduler = epsilon_scheduler
@@ -75,7 +75,7 @@ class MADDPGPolicy:
 
     def get_action(self, state: torch.Tensor, online_actor: torch.nn.Module, training: bool = False) -> np.ndarray:
         """Returns actions for given state as per current policy."""
-        assert state.shape[0] == self.num_agents, state.shape[0]
+        # assert state.shape[0] == self.num_agents, state.shape[0]
 
         def get_actions_():
             online_actor.eval()
@@ -113,7 +113,7 @@ class MADDPGPolicy:
 
         all_other_agent_states = torch.stack([row for i, row in enumerate(expanded_joint_next_states) if i % self.num_agents != 0]).float()
 
-        action_pr_other = online_actor(all_other_agent_states).detach().float()
+        action_pr_other = online_actor(all_other_agent_states).detach().float().view(batch_size, -1)
 
         critic_local_input2 = torch.cat((experience_batch.joint_states, action_pr_other), dim=1)
         actor_errors = -online_critic(critic_local_input2, action_pr_self)
@@ -124,20 +124,28 @@ class MADDPGPolicy:
         """ Compute the error and loss of the critic"""
         batch_size = len(experience_batch)
 
+        # print(batch_size, self.num_agents)
         all_next_actions = target_actor(experience_batch.joint_next_states.view(batch_size * self.num_agents, -1).float())
 
-        all_other_agent_actions = torch.stack([row for i, row in enumerate(all_next_actions) if i % self.num_agents != 0])
+        # Reshape as bsize, -1 as we can't be sure of the number of other agents
+        all_other_agent_actions = torch.stack([row for i, row in enumerate(all_next_actions) if i % self.num_agents != 0]).view(batch_size, -1)
         all_agent_actions = all_next_actions.view(batch_size * self.num_agents, -1)[::self.num_agents]
+
+        # print("all_other_agent_actions: {}".format(all_other_agent_actions.shape))
+
 
         critic_target_input = torch.cat((experience_batch.joint_next_states, all_other_agent_actions.float()), dim=1).to(
             device)
+
+        # print("critic_target_input: {}".format(critic_target_input.shape))
 
         with torch.no_grad():
             q_target_next = target_critic(critic_target_input, all_agent_actions)
         q_targets = experience_batch.rewards + (self.gamma * q_target_next * (1 - experience_batch.dones))
 
         joint_actions = experience_batch.joint_actions.view(batch_size * self.num_agents, -1)
-        all_other_agent_actions = torch.stack([row for i, row in enumerate(joint_actions) if i % self.num_agents != 0])
+        all_other_agent_actions = torch.stack([row for i, row in enumerate(joint_actions) if i % self.num_agents != 0]).view(batch_size, -1)
+
         critic_local_input = torch.cat((experience_batch.joint_states, all_other_agent_actions.float()), dim=1).to(device)
         q_expected = online_critic(critic_local_input, experience_batch.actions.float())
 

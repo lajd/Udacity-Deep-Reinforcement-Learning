@@ -18,7 +18,7 @@ from agents.models.components import noise as rm
 # from tools.misc import *
 from agents.memory.memory import Memory
 from tools.parameter_decay import ParameterScheduler
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 
 SAVE_TAG = 'homogeneous_maddpg_baseline'
 ACTOR_CHECKPOINT_FN = lambda brain_name: join(SOLUTIONS_CHECKPOINT_DIR, f'{brain_name}_{SAVE_TAG}_actor_checkpoint.pth')
@@ -29,7 +29,7 @@ TRAINING_SCORES_SAVE_PATH_FN = lambda brain_name: join(SOLUTIONS_CHECKPOINT_DIR,
 NUM_EPISODES = 1000
 MAX_T = 1000
 SOLVE_SCORE = 2
-WARMUP_STEPS = 5000
+WARMUP_STEPS = 1#5000
 BUFFER_SIZE = int(1e6)  # replay buffer size
 ACTOR_LR = 1e-3  # Actor network learning rate
 CRITIC_LR = 1e-4  # Actor network learning rate
@@ -52,7 +52,7 @@ class Critic(nn.Module):
         """
         super(Critic, self).__init__()
         self.seed = torch.manual_seed(seed)
-        input_dim = state_size * num_agents + action_size
+        input_dim = (GOALIE_STATE_SIZE * NUM_GOALIE_AGENTS + STRIKER_STATE_SIZE * NUM_STRIKER_AGENTS) + (action_size * (NUM_GOALIE_AGENTS + NUM_STRIKER_AGENTS) - 1)
         self.fc1 = nn.Linear(input_dim, fc1)
         self.fc2 = nn.Linear(fc1 + action_size, fc2)
 
@@ -135,32 +135,66 @@ class Actor(nn.Module):
         return x
 
 
+class JointAttributes:
+    def __init__(self, brain_set: BrainSet, next_brain_environment: dict):
+        all_states = defaultdict(list)
+        all_actions = defaultdict(list)
+        all_next_states = defaultdict(list)
+        for brain_name, brain_environment in next_brain_environment.items():
+            all_states[brain_name].extend(brain_environment['states'])
+            all_actions[brain_name].extend(brain_environment['actions'])
+            all_next_states[brain_name].extend(brain_environment['next_states'])
+
+        self.all_states = all_states
+        self.all_actions = all_actions
+        self.all_next_states = all_next_states
+
+    def get_joint_attributes(self, target_brain_name, agent_num):
+        x, y, z = None, None, None
+        joint_states = []
+        joint_actions = []
+        joint_next_states = []
+
+        for brain_name, agent_states in self.all_states.items():
+            if brain_name != target_brain_name:
+                a = torch.cat(agent_states)
+            else:
+                a = torch.cat([s for i, s in enumerate(agent_states) if i != agent_num])
+                x = agent_states[agent_num]
+            joint_states.append(a)
+
+        for brain_name, agent_actions in self.all_actions.items():
+            if brain_name != target_brain_name:
+                a = np.concatenate(agent_actions)
+            else:
+                a = np.concatenate([s for i, s in enumerate(agent_actions) if i != agent_num])
+                y = agent_actions[agent_num]
+            joint_actions.append(a)
+
+        for brain_name, agent_next_states in self.all_next_states.items():
+            if brain_name != target_brain_name:
+                a = torch.cat(agent_next_states)
+            else:
+                a = torch.cat([s for i, s in enumerate(agent_next_states) if i != agent_num])
+                z = agent_next_states[agent_num]
+            joint_next_states.append(a)
+
+        joint_states = torch.cat([x] + joint_states)
+        joint_actions = torch.from_numpy(np.concatenate([y] + joint_actions))
+        joint_next_states = torch.cat([z] + joint_next_states)
+
+        return joint_states, joint_actions, joint_next_states
+
+
 def step_agents_fn(brain_set: BrainSet, next_brain_environment: dict, t: int):
     # Get the joint states
-    joint_states = [[], []]
-    joint_next_states = [[], []]
-    joint_actions = [[], []]
+
+    ja = JointAttributes(brain_set, next_brain_environment)
 
     for brain_name, brain_environment in next_brain_environment.items():
         num_agents = brain_set[brain_name].num_agents
         for agent_number in range(num_agents):
-            i = agent_number
-            joint_states[0].append(brain_environment['states'][i])
-            joint_states[1].extend([brain_environment['states'][j] for j in range(num_agents) if j != i])
-
-            joint_state = torch.cat((brain_environment['states'][i], *[brain_environment['states'][j] for j in range(num_agents) if j != i]))
-            joint_action = np.concatenate((brain_environment['actions'][i], *[brain_environment['actions'][j] for j in range(num_agents) if j != i]))
-            join_next_state = torch.cat((brain_environment['next_states'][i], *[brain_environment['next_states'][j] for j in range(num_agents) if j != i]))
-
-
-    for _, brain_environment in next_brain_environment.items():
-        joint_states.append(brain_environment['states'])
-        joint_next_states.append(brain_environment['next_states'])
-        joint_actions.append(torch.from_numpy(brain_environment['actions']))
-
-    for brain_name, brain_environment in next_brain_environment.items():
-        num_agents = brain_set[brain_name].num_agents
-        for agent_number in range(num_agents):
+            joint_states, joint_actions, joint_next_states = ja.get_joint_attributes(brain_name, agent_number)
             brain_agent_experience = Experience(
                 state=brain_environment['states'][agent_number],
                 action=brain_environment['actions'][agent_number],
@@ -168,9 +202,9 @@ def step_agents_fn(brain_set: BrainSet, next_brain_environment: dict, t: int):
                 next_state=brain_environment['next_states'][agent_number],
                 done=brain_environment['dones'][agent_number],
                 t_step=t,
-                joint_state=torch.cat(joint_states, dim=1),
-                joint_action=torch.cat(joint_actions, dim=1),
-                joint_next_state=torch.cat(joint_next_states, dim=1),
+                joint_state=joint_states,
+                joint_action=joint_actions,
+                joint_next_state=joint_next_states,
             )
             brain_set[brain_name].agent.step(brain_agent_experience, agent_number=agent_number)
 

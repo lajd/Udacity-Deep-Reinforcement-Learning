@@ -17,6 +17,8 @@ from tools.misc import LinearSchedule
 from agents.models.components import noise as rm
 # from tools.misc import *
 from agents.memory.memory import Memory
+from tools.parameter_decay import ParameterScheduler
+from collections import defaultdict
 
 SAVE_TAG = 'homogeneous_maddpg_baseline'
 ACTOR_CHECKPOINT_FN = lambda brain_name: join(SOLUTIONS_CHECKPOINT_DIR, f'{brain_name}_{SAVE_TAG}_actor_checkpoint.pth')
@@ -33,7 +35,7 @@ ACTOR_LR = 1e-3  # Actor network learning rate
 CRITIC_LR = 1e-4  # Actor network learning rate
 SEED = 0
 BATCH_SIZE = 32
-NUM_LEARNING_UPDATES = 1
+NUM_LEARNING_UPDATES = 5
 POLICY_UPDATE_FREQUENCY = 2
 
 
@@ -120,12 +122,12 @@ class Actor(nn.Module):
         x = F.relu(self.bn3(self.fc2(x)))
         x = (self.fc4(x))
 
-        norm = torch.norm(x)
+        # norm = torch.norm(x)
 
         # h3 is a 2D vector (a force that is applied to the agent)
         # we bound the norm of the vector to be between 0 and 10
 
-        x = 10.0 * (F.tanh(norm)) * x / norm if norm > 0 else 10 * x
+        # x = 10.0 * (F.tanh(norm)) * x / norm if norm > 0 else 10 * x
 
         if self.with_argmax:
             x = self.softmax(x)
@@ -134,17 +136,31 @@ class Actor(nn.Module):
 
 
 def step_agents_fn(brain_set: BrainSet, next_brain_environment: dict, t: int):
-    import time
-    t1 = time.time()
+    # Get the joint states
+    joint_states = [[], []]
+    joint_next_states = [[], []]
+    joint_actions = [[], []]
+
     for brain_name, brain_environment in next_brain_environment.items():
         num_agents = brain_set[brain_name].num_agents
         for agent_number in range(num_agents):
             i = agent_number
+            joint_states[0].append(brain_environment['states'][i])
+            joint_states[1].extend([brain_environment['states'][j] for j in range(num_agents) if j != i])
+
             joint_state = torch.cat((brain_environment['states'][i], *[brain_environment['states'][j] for j in range(num_agents) if j != i]))
             joint_action = np.concatenate((brain_environment['actions'][i], *[brain_environment['actions'][j] for j in range(num_agents) if j != i]))
             join_next_state = torch.cat((brain_environment['next_states'][i], *[brain_environment['next_states'][j] for j in range(num_agents) if j != i]))
 
-            # print("join_next_state shape: {}".format(join_next_state.shape))
+
+    for _, brain_environment in next_brain_environment.items():
+        joint_states.append(brain_environment['states'])
+        joint_next_states.append(brain_environment['next_states'])
+        joint_actions.append(torch.from_numpy(brain_environment['actions']))
+
+    for brain_name, brain_environment in next_brain_environment.items():
+        num_agents = brain_set[brain_name].num_agents
+        for agent_number in range(num_agents):
             brain_agent_experience = Experience(
                 state=brain_environment['states'][agent_number],
                 action=brain_environment['actions'][agent_number],
@@ -152,13 +168,11 @@ def step_agents_fn(brain_set: BrainSet, next_brain_environment: dict, t: int):
                 next_state=brain_environment['next_states'][agent_number],
                 done=brain_environment['dones'][agent_number],
                 t_step=t,
-                joint_state=joint_state,
-                joint_action=torch.from_numpy(joint_action),
-                joint_next_state=join_next_state
+                joint_state=torch.cat(joint_states, dim=1),
+                joint_action=torch.cat(joint_actions, dim=1),
+                joint_next_state=torch.cat(joint_next_states, dim=1),
             )
             brain_set[brain_name].agent.step(brain_agent_experience, agent_number=agent_number)
-    t2 = time.time()
-    # print(t2-t1)
 
 
 if __name__ == '__main__':
@@ -170,7 +184,8 @@ if __name__ == '__main__':
             action_dim=GOALIE_ACTION_SIZE,
             num_agents=NUM_GOALIE_AGENTS,
             continuous_actions=False,
-            discrete_action_range=GOALIE_ACTION_DISCRETE_RANGE
+            discrete_action_range=GOALIE_ACTION_DISCRETE_RANGE,
+            epsilon_scheduler=ParameterScheduler(initial=1, lambda_fn=lambda i: 0.99 ** i, final=0.01),
         ),
         state_shape=GOALIE_STATE_SIZE,
         action_size=GOALIE_ACTION_SIZE,
@@ -201,7 +216,8 @@ if __name__ == '__main__':
             action_dim=STRIKER_ACTION_SIZE,
             num_agents=NUM_STRIKER_AGENTS,
             continuous_actions=False,
-            discrete_action_range=STRIKER_ACTION_DISCRETE_RANGE
+            discrete_action_range=STRIKER_ACTION_DISCRETE_RANGE,
+            epsilon_scheduler=ParameterScheduler(initial=1, lambda_fn=lambda i: 0.99 ** i, final=0.01),
         ),
         state_shape=STRIKER_STATE_SIZE,
         action_size=STRIKER_ACTION_SIZE,

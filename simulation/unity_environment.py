@@ -109,7 +109,7 @@ class UnityEnvironmentSimulator:
         """
         for brain in brain_set.brains():
             brain.agent.set_mode('train')
-            # brain.agent.set_warmup(False)
+            brain.agent.set_warmup(False)
 
         self.training_scores = Scores(window_size=sliding_window_size)
 
@@ -161,7 +161,7 @@ class UnityEnvironmentSimulator:
         print("Performing warmup with {} episodes and max_t={}".format(n_episodes, max_t))
         for brain in brain_set.brains():
             brain.agent.set_mode('train')
-            # brain.agent.set_warmup(True)
+            brain.agent.set_warmup(True)
 
         t1 = time.time()
         for i_episode in range(1, n_episodes + 1):

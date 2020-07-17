@@ -13,9 +13,8 @@ from tasks.tennis.solutions.maddpg import SOLUTIONS_CHECKPOINT_DIR
 from agents.policies.maddpg_policy import MADDPGPolicy
 from tools.misc import LinearSchedule
 from agents.models.components import noise as rm
-# from tools.misc import *
 from agents.memory.memory import Memory
-from conf import TEST
+from tools.parameter_decay import ParameterScheduler
 
 SAVE_TAG = 'homogeneous_maddpg_baseline'
 ACTOR_CHECKPOINT_FN = lambda brain_name: join(SOLUTIONS_CHECKPOINT_DIR, f'{brain_name}_{SAVE_TAG}_actor_checkpoint.pth')
@@ -47,8 +46,10 @@ class Critic(nn.Module):
         super(Critic, self).__init__()
         self.seed = torch.manual_seed(seed)
         input_dim = state_size * NUM_AGENTS + action_size
+        # input_dim = state_size * NUM_AGENTS# + action_size
         self.fc1 = nn.Linear(input_dim, fc1)
         self.fc2 = nn.Linear(fc1 + action_size, fc2)
+        # self.fc2 = nn.Linear(fc1 + action_size * NUM_AGENTS, fc2)
 
         self.bn = nn.BatchNorm1d(input_dim)
         self.bn2 = nn.BatchNorm1d(fc1)
@@ -125,8 +126,6 @@ class Actor(nn.Module):
 
 
 def step_agents_fn(brain_set: BrainSet, next_brain_environment: dict, t: int):
-    import time
-    t1 = time.time()
     for brain_name, brain_environment in next_brain_environment.items():
         num_agents = brain_set[brain_name].num_agents
         for agent_number in range(num_agents):
@@ -135,7 +134,10 @@ def step_agents_fn(brain_set: BrainSet, next_brain_environment: dict, t: int):
             joint_action = np.concatenate((brain_environment['actions'][i], *[brain_environment['actions'][j] for j in range(num_agents) if j != i]))
             join_next_state = torch.cat((brain_environment['next_states'][i], *[brain_environment['next_states'][j] for j in range(num_agents) if j != i]))
 
-            # print("join_next_state shape: {}".format(join_next_state.shape))
+            # joint_state = torch.cat([brain_environment['states'][j] for j in range(num_agents)])
+            # joint_action = np.concatenate([brain_environment['actions'][j] for j in range(num_agents)])
+            # join_next_state = torch.cat([brain_environment['next_states'][j] for j in range(num_agents)])
+
             brain_agent_experience = Experience(
                 state=brain_environment['states'][agent_number],
                 action=brain_environment['actions'][agent_number],
@@ -148,8 +150,6 @@ def step_agents_fn(brain_set: BrainSet, next_brain_environment: dict, t: int):
                 joint_next_state=join_next_state
             )
             brain_set[brain_name].agent.step(brain_agent_experience, agent_number=agent_number)
-    t2 = time.time()
-    print(t2-t1)
 
 
 if __name__ == '__main__':
@@ -160,7 +160,8 @@ if __name__ == '__main__':
     policy = MADDPGPolicy(
         noise_factory=noise_factory,
         action_dim=ACTION_SIZE,
-        num_agents=NUM_AGENTS
+        num_agents=NUM_AGENTS,
+        epsilon_scheduler=ParameterScheduler(initial=1, lambda_fn=lambda i: 0.95 ** i, final=0.01),
     )
 
     homogeneous_maddpg_agent = MADDPGAgent(

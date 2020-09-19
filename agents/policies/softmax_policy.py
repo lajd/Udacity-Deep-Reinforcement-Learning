@@ -9,9 +9,6 @@ class SoftmaxPolicy(Policy):
         super().__init__(action_size=action_size)
         self.action_size = action_size
 
-        if seed:
-            self.set_seed(seed)
-
     def get_action(self, state: np.array, model: torch.nn.Module) -> Action:
         """ Implement this function for speed"""
 
@@ -21,7 +18,8 @@ class SoftmaxPolicy(Policy):
         model.train()
 
         probs = torch.nn.functional.softmax(action_values)
-        action = Action(value=int(np.random.choice(np.arange(0, self.action_size), p=probs.view(-1).numpy())), distribution=probs.data.cpu().numpy())
+        action = np.array([np.random.choice(np.arange(0, self.action_size), p=probs.view(-1).numpy())])
+        action = Action(value=action)
         return action
 
     def get_deterministic_policy(self, state_action_values_dict: dict):

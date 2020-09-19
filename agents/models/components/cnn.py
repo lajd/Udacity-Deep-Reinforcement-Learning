@@ -1,10 +1,11 @@
 import torch
 import torch.nn as nn
 from typing import List, Optional, Union, Tuple
-from .misc import Flatten
+from agents.models.components.misc import Flatten
+from agents.models.components import BaseComponent
 
 
-class CNN(torch.nn.Module):
+class CNN(BaseComponent):
     """ Helper module for creating CNNs """
     def __init__(
             self,
@@ -14,7 +15,7 @@ class CNN(torch.nn.Module):
             filters: tuple = (32, 64, 64),
             kernel_sizes: Union[Tuple[int, ...], Tuple[tuple, ...]] = ((1, 8, 8), (1, 4, 4), (4, 3, 3)),
             stride_sizes=((1, 4, 4), (1, 2, 2), (1, 1, 1)),
-            output_layer: Optional[torch.nn.Module] = None,
+            output_layer: Optional[nn.Module] = None,
             **kwargs
     ):
         super().__init__()

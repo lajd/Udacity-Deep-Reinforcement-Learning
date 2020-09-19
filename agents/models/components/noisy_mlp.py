@@ -4,19 +4,21 @@ from typing import Optional, Type
 from torch import nn
 import torch.nn.functional as F
 from torch.autograd import Variable
+from agents.models.components import BaseComponent
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
-class NoisyMLP(nn.Module):
+class NoisyMLP(BaseComponent):
     """ Helper module for creating noisy fully connected layers """
     def __init__(
             self,
             layer_sizes: tuple,
-            activation_function: torch.nn.Module = nn.ReLU(),
+            activation_function: torch.nn.Module = nn.ReLU(True),
             output_function: Optional[torch.nn.Module] = None,
             dropout: Optional[float] = None,
+            batch_norm: bool = False
     ):
         super().__init__()
 
@@ -27,6 +29,8 @@ class NoisyMLP(nn.Module):
             layers.append(activation_function)
             if dropout:
                 layers.append(nn.Dropout(dropout))
+            if batch_norm:
+                layers.append(nn.BatchNorm1d(previous_output))
             layers.append(NoisyLinear(previous_output, n_out))
             previous_output = n_out
 

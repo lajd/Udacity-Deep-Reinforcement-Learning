@@ -1,8 +1,9 @@
 import torch
-from typing import Optional, Tuple
-from tools.rl_constants import ExperienceBatch
+from typing import Optional, Tuple, Callable
+from tools.rl_constants import ExperienceBatch, Action
 from agents.policies.ddpg_policy import DDPGPolicy
 from agents.models.components.noise import Noise, GaussianNoise
+from tools.parameter_scheduler import ParameterScheduler
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -15,13 +16,19 @@ class TD3Policy(DDPGPolicy):
     """ Policy for the TD3 algorithm"""
     def __init__(
             self,
-            noise: Noise,
+            random_brain_action_factory: Callable,
             action_dim: int,
             gamma: float = 0.99,
             seed: Optional[int] = None,
             action_range: Tuple[int, int] = (-1, 1),
+            noise: Optional[Noise] = None,
+            epsilon_scheduler: Optional[ParameterScheduler] = None,
     ):
-        super().__init__(action_dim=action_dim, noise=noise, gamma=gamma, seed=seed, action_range=action_range)
+        if not (noise or epsilon_scheduler):
+            raise ValueError("Must provide either noise or epsilon_scheduler")
+
+        super().__init__(action_dim=action_dim, noise=noise, gamma=gamma, seed=seed,
+                         action_range=action_range, random_brain_action_factory=random_brain_action_factory, epsilon_scheduler=epsilon_scheduler)
         self.gaussian_noise = GaussianNoise()
 
     def compute_actor_errors(self, experience_batch: ExperienceBatch, online_actor, target_actor, target_critic, online_critic) -> tuple:
@@ -35,7 +42,7 @@ class TD3Policy(DDPGPolicy):
         """ Compute the error and loss of the critic"""
 
         with torch.no_grad():
-            next_actions = online_actor(experience_batch.next_states)
+            next_actions = target_actor(experience_batch.next_states)
             # Smooth the targets used for policy updates
             # Add noise to the actions used to calculate the target & clip
             next_actions += self.gaussian_noise.sample(next_actions).float().to(device)
@@ -59,4 +66,5 @@ class TD3Policy(DDPGPolicy):
         td_errors = td_errors_a + td_errors_b
         # Compute critic loss (joint loss between both critic streams)
         critic_loss = torch.pow(td_errors_a, 2).mean() + torch.pow(td_errors_b, 2).mean()
+
         return critic_loss, td_errors

@@ -1,23 +1,33 @@
 import os
 import json
 import torch
+import pickle
 from os.path import join, dirname
 from agents.models.dqn import VisualDQN
 from agents.models.components.cnn import CNN
 from copy import deepcopy
 from tools.scores import Scores
-from tasks.banana_collector.solutions.utils import default_cfg, get_policy, get_memory, get_agent, get_simulator, VISUAL_STATE_SHAPE, ACTION_SIZE
+from tasks.banana_collector.solutions.utils import default_cfg, get_policy, get_memory, get_agent,\
+    get_simulator, VISUAL_STATE_SHAPE, ACTION_SIZE, BRAIN_NAME,\
+    get_preprocess_state_fn, visual_agent_step_agents_fn
+from tools.rl_constants import Brain, BrainSet
 
 SEED = default_cfg['SEED']
 SOLVED_SCORE = 13.0
 ENVIRONMENTS_DIR = join(dirname(dirname(dirname(__file__))), 'environments')
 SOLUTION_CHECKPOINT_DIR = join(dirname(__file__), 'solution_checkpoint')
+
+if not os.path.exists(SOLUTION_CHECKPOINT_DIR):
+    os.makedirs(SOLUTION_CHECKPOINT_DIR, exist_ok=True)
+
 MODEL_SAVE_PATH = join(SOLUTION_CHECKPOINT_DIR, 'visual_agent_banana_solution.pth')
 PLOT_SAVE_PATH = join(SOLUTION_CHECKPOINT_DIR, 'visual_agent_banana_solution.png')
+TRAINING_SCORES_PLOT_SAVE_PATH = join(SOLUTION_CHECKPOINT_DIR, 'solution_training_scores.png')
+TRAINING_SCORES_SAVE_PATH = join(SOLUTION_CHECKPOINT_DIR, 'solution_training_scores.pkl')
 os.makedirs(SOLUTION_CHECKPOINT_DIR, exist_ok=True)
 
 
-def get_solution_agent():
+def get_solution_brain_set():
     # Define the solution hyper parameters
     params = deepcopy(default_cfg)
 
@@ -72,24 +82,42 @@ def get_solution_agent():
 
     memory = get_memory(VISUAL_STATE_SHAPE, params)
 
-    agent_ = get_agent(VISUAL_STATE_SHAPE, ACTION_SIZE, model, policy, memory, optimizer, params)
-    return agent_, params
+    solution_agent = get_agent(VISUAL_STATE_SHAPE, ACTION_SIZE, model, policy, memory, optimizer, params)
+
+    banana_brain_ = Brain(
+        brain_name=BRAIN_NAME,
+        action_size=ACTION_SIZE,
+        state_shape=VISUAL_STATE_SHAPE,
+        observation_type='visual',
+        agents=[solution_agent],
+        preprocess_state_fn=get_preprocess_state_fn(params)
+    )
+
+    brain_set_ = BrainSet(brains=[banana_brain_])
+    return brain_set_, params
 
 
 if __name__ == '__main__':
     # Initialize the simulator
     simulator = get_simulator(visual=True)
 
-    agent, params = get_solution_agent()
+    brain_set, params = get_solution_brain_set()
 
     # Run warmup
-    simulator.warmup(agents=[agent], n_episodes=int(params['WARMUP_STEPS'] / params['MAX_T']), max_t=params['MAX_T'])
+    simulator.warmup(
+        brain_set=brain_set,
+        n_episodes=int(params['WARMUP_STEPS'] / params['MAX_T']),
+        max_t=params['MAX_T'],
+        step_agents_fn=visual_agent_step_agents_fn
+    )
 
     # Run Training
-    agents, training_scores, i_episode, training_time = simulator.train(
-        agents=[agent],
+    brain_set, training_scores, i_episode, training_time = simulator.train(
+        brain_set=brain_set,
         max_t=params["MAX_T"],
         solved_score=SOLVED_SCORE,
+        n_episodes=default_cfg['N_EPISODES'],
+        step_agents_fn=visual_agent_step_agents_fn
     )
 
     scores = Scores(initialize_scores=training_scores.scores)
@@ -101,4 +129,9 @@ if __name__ == '__main__':
     fig = scores.plot_scores(title_text=title_text)
 
     if training_scores.get_mean_sliding_scores() > SOLVED_SCORE:
-        agents[0].save(MODEL_SAVE_PATH)
+        brain = brain_set[BRAIN_NAME]
+        trained_agent = brain.agents[0]
+        torch.save(trained_agent.online_qnetwork.state_dict(), MODEL_SAVE_PATH)
+        training_scores.save_scores_plot(TRAINING_SCORES_PLOT_SAVE_PATH)
+        with open(TRAINING_SCORES_SAVE_PATH, 'wb') as f:
+            pickle.dump(training_scores, f)

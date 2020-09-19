@@ -1,3 +1,4 @@
+import time
 from typing import Optional, List
 from collections import deque
 import numpy as np
@@ -18,6 +19,7 @@ class Scores:
 
         self.tag = tag
         self.window_size = window_size
+        self.t_init = time.time()
 
     def add(self, score: float):
         self.scores.append(score)
@@ -50,6 +52,10 @@ class Scores:
         plt_ = self.get_plot(title_text=title_text)
         plt_.show()
 
-    def save_scores_plot(self, save_path: str, title_text: Optional[str] = 'Scores (Rewards)'):
-        plt_ = self.get_plot(title_text=title_text)
+    def save_scores_plot(self, save_path: str, title_text: Optional[str] = 'Scores (Rewards)', body_txt=None):
+        if not body_txt:
+            body_txt = ''
+
+        body_txt += 'Environment solved in {}s'.format(round(time.time() - self.t_init))
+        plt_ = self.get_plot(title_text=title_text, body_txt=body_txt)
         plt_.savefig(save_path)

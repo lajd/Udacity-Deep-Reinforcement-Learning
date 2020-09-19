@@ -1,65 +1,52 @@
 from abc import abstractmethod
-import torch
 import numpy as np
-from typing import Tuple
-from agents.policies.base_policy import Policy
-from torch.optim.lr_scheduler import _LRScheduler
-from tools.rl_constants import Experience, Action
+from typing import Tuple, Union
+from tools.rl_constants import Experience, ExperienceBatch, BrainSet, Action
 from tools.parameter_capture import ParameterCapture
 
 
-class Agent(torch.nn.Module):
+class Agent:
     """ An agent which received state & reward from, and interacts with, and environment"""
-    def __init__(self, state_shape: Tuple[int, ...], action_size: int, policy: Policy, optimizer: torch.optim.Optimizer, lr_scheduler: _LRScheduler):
-        super().__init__()
+    def __init__(self, state_shape: Union[Tuple[int, ...], int], action_size: int):
         self.state_shape = state_shape
         self.action_size = action_size
 
-        self.policy: Policy = policy
-        self.optimizer: optimizer = optimizer
-        self.lr_scheduler: _LRScheduler = lr_scheduler
-
+        self.warmup = False
+        self.t_step = 0
+        self.episode_counter = 0
         self.param_capture = ParameterCapture()
+        self.training = True
 
+    def set_warmup(self, warmup: bool):
+        self.warmup = warmup
+
+    @abstractmethod
     def set_mode(self, mode: str):
-        """ Set the mode of the agent """
-        if mode == 'train':
-            self.train()
-            self.policy.train = True
-        elif mode.startswith('eval'):
-            self.eval()
-            self.policy.eval()  # Make the policy greedy
-        else:
-            raise ValueError("only modes `train`, `evaluate` are supported")
+        pass
 
-    def preprocess_state(self, state: torch.Tensor):
+    def preprocess_state(self, state):
+        """ Perform any state preprocessing """
         return state
 
     @abstractmethod
-    def save(self, *args, **kwargs) -> dict:
-        """Save the agent model"""
-        pass
-
-    @abstractmethod
-    def load(self, *args, **kwargs):
-        """ Load the agent model """
-        pass
-
-    @abstractmethod
-    def get_action(self, state: np.array) -> Action:
+    def get_action(self, state: np.array, *args, **kwargs) -> Action:
         """Determine an action given an environment state"""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
-    def get_random_action(self, *args) -> Action:
-        pass
+    def get_random_action(self, *args, **kwargs) -> Action:
+        raise NotImplementedError
 
     @abstractmethod
     def step(self, experience: Experience, **kwargs) -> None:
         """Take a step in the environment, encompassing model learning and memory population"""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
-    def step_episode(self, episode: int) -> None:
+    def step_episode(self, episode: int, *args) -> None:
         """Perform any end-of-episode updates"""
+        raise NotImplementedError
+
+    @abstractmethod
+    def learn(self, experience_batch: ExperienceBatch):
         pass

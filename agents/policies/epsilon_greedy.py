@@ -1,9 +1,9 @@
 import numpy as np
 import torch
-from tools.parameter_decay import ParameterScheduler
+from tools.parameter_scheduler import ParameterScheduler
 from agents.policies.base_policy import Policy
-import random
 from tools.rl_constants import Action
+import random
 
 
 class EpsilonGreedyPolicy(Policy):
@@ -15,7 +15,7 @@ class EpsilonGreedyPolicy(Policy):
     The selected action is random with probability epsilon, and argmax(Q(s, a)) otherwise
     """
     def __init__(self, action_size: int, epsilon_scheduler: ParameterScheduler, seed: int = None):
-        super().__init__(action_size=action_size)
+        super().__init__(action_size=action_size, seed=seed)
         self.epsilon_scheduler = epsilon_scheduler
 
         self.action_size = action_size
@@ -23,10 +23,7 @@ class EpsilonGreedyPolicy(Policy):
         # Initialize epsilon
         self.epsilon = self.epsilon_scheduler.initial
 
-        if seed:
-            self.set_seed(seed)
-
-    def step(self, episode_number: int):
+    def step_episode(self, episode_number: int):
         self.epsilon = self.epsilon_scheduler.get_param(episode_number)
         return True
 
@@ -35,20 +32,19 @@ class EpsilonGreedyPolicy(Policy):
             model.eval()
             with torch.no_grad():
                 action_values = model.forward(state, act=True)
-                selcted_action_ = int(action_values.max(1)[1].data[0])
+                action_ = action_values.max(1)[1].cpu().numpy()
             model.train()
-            action_ = Action(value=selcted_action_, distribution=None)
             return action_
 
-        if self.train:
+        if self.training:
             if random.random() > self.epsilon:
-                return _get_greedy_action()
+                action = _get_greedy_action()
             else:
-                selcted_action = int(torch.randint(0, self.action_size, (1,)))
-                action = Action(value=selcted_action, distribution=None)
-                return action
+                action = torch.randint(0, self.action_size, (1,)).numpy()
         else:
-            return _get_greedy_action()
+            action = _get_greedy_action()
+
+        return Action(value=action)
 
     def get_deterministic_policy(self, state_action_values_dict: dict):
         deterministic_policy = {}

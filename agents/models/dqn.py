@@ -1,7 +1,6 @@
 import torch
 from torch import nn
 from collections import deque
-from tools.image_utils import RGBImage
 from typing import Optional
 from agents.models.base import BaseModel
 from agents.models.components.mlp import MLP
@@ -103,8 +102,6 @@ class DQN(BaseModel):
         # Child modules for obtaining features and output
         self.features = featurizer
         self.output = self.get_output()
-
-        self.initial = True
 
     def step(self):
         """Perform actions after each learning step"""
@@ -216,6 +213,7 @@ class DQN(BaseModel):
             q = torch.sum(dist * self.categorical_support, dim=2)
             return q
         else:
+
             state = self.prepare_for_forward(state, act)
             features = self.features(state)
 
@@ -279,11 +277,14 @@ class VisualDQN(DQN):
             categorical_v_max=categorical_v_max,
         )
 
-    def prepare_for_forward(self, state, act=False):
-        """Build a network that maps state -> action values."""
+    def prepare_for_forward(self, state: torch.FloatTensor, act: bool = False):
+        """Build a network that maps state -> action values.
+
+        act: Whether to expect a single sample (i.e. not a training batch) and to supplement
+        frames from the state buffer
+        """
         if act:
             self.state_buffer.append(state)
-            # assert preprocessed_state.shape == torch.Size((1, 84, 84)), preprocessed_state.shape
             # Ensure the state buffer has at least num_stacked_frames states
             while len(self.state_buffer) < self.num_stacked_frames:
                 self.state_buffer.appendleft(self.state_buffer[0])
@@ -297,21 +298,3 @@ class VisualDQN(DQN):
             state = state.permute(0, 4, 1, 2, 3)
 
         return state
-
-    def preprocess_state(self, state: torch.Tensor):
-        assert state.shape == torch.Size((1, 84, 84, 3)), state.shape
-        if self.grayscale:
-            # bsize x num_stacked_frames x r x g x b
-            image = RGBImage(state)
-            # Remove the last dimension by converting to grayscale
-            gray_image = image.to_gray()
-            normalized_image = gray_image / 255
-            preprocessed_state = normalized_image
-        else:
-            state /= 255
-            preprocessed_state = state
-
-        if self.initial:
-            print("Preprocessed state shape is: {}".format(preprocessed_state.shape))
-            self.initial = False
-        return preprocessed_state

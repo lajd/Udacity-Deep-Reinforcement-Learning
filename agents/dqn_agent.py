@@ -16,8 +16,6 @@ from tools.rl_constants import ExperienceBatch, Action
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-NUM_FRAMES = 4
-
 
 class DQNAgent(Agent):
     """Interacts with and learns from the environment."""

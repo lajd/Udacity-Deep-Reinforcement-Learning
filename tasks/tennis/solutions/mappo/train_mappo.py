@@ -12,7 +12,6 @@ from agents.models.components.critics import MACritic
 from simulation.utils import multi_agent_step_episode_agents_fn, multi_agent_step_agents_fn
 from tools.layer_initializations import init_layer_inverse_root_fan_in, get_init_layer_within_rage
 from tools.parameter_scheduler import ParameterScheduler
-from agents.models.components.misc import BoundVectorNorm
 
 SAVE_TAG = 'mappo'
 ACTOR_CRITIC_CHECKPOINT_FN = lambda brain_name, agent_num: join(SOLUTIONS_CHECKPOINT_DIR, f'{brain_name}_agent_{agent_num}_{SAVE_TAG}_actor_critic_checkpoint.pth')
@@ -41,7 +40,6 @@ def get_solution_brain_set():
             agent_id=key,
             state_size=STATE_SIZE,
             action_size=ACTION_SIZE,
-            random_seed=SEED,
             map_agent_to_state_slice={
                 "TennisBrain_0": lambda t: t[:, 0:24],
                 "TennisBrain_1": lambda t: t[:, 24:48]
@@ -90,6 +88,7 @@ def get_solution_brain_set():
             num_learning_updates=4,
             beta_scheduler=ParameterScheduler(initial=0.01, lambda_fn=lambda i: 0.01, final=0.01),
             std_scale_scheduler=ParameterScheduler(initial=0.8, lambda_fn=lambda i: 0.8 * 0.999 ** i, final=0.2),
+            seed=SEED
         )
         tennis_agents.append(agent)
 
@@ -119,7 +118,7 @@ if __name__ == '__main__':
         step_agents_fn=multi_agent_step_agents_fn,
         step_episode_agents_fn=multi_agent_step_episode_agents_fn,
         brain_reward_accumulation_fn=lambda rewards: np.max(rewards),
-        end_episode_critieria=np.all
+        end_episode_criteria=np.all
     )
 
     if training_scores.get_mean_sliding_scores() > SOLVE_SCORE:

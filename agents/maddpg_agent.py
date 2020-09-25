@@ -17,6 +17,7 @@ class MADDPGAgent(Agent):
     memory = None
     actor_optimizer = None
     critic_optimizer = None
+
     def __init__(
             self,
             agent_id,

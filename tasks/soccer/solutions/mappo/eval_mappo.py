@@ -25,7 +25,7 @@ if __name__ == '__main__':
         brain_set,
         n_episodes=20,
         max_t=MAX_T,
-        end_episode_critieria=np.all,
+        end_episode_criteria=np.all,
         end_of_episode_score_display_fn=end_of_episode_score_display_fn,
         episode_reward_accumulation_fn=lambda brain_episode_scores: episode_reward_fn(brain_episode_scores),
     )

@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from typing import List, Optional, Union, Tuple
+from typing import Optional, Union, Tuple
 from agents.models.components.misc import Flatten
 from agents.models.components import BaseComponent
 

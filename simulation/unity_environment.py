@@ -1,20 +1,21 @@
-from unityagents import UnityEnvironment
-import numpy as np
+import time
+from collections import OrderedDict
 from typing import Tuple, Optional, List, Callable, Dict
 from copy import deepcopy
-import time
+import warnings
+
 import torch
-import random
+import numpy as np
 import matplotlib.pyplot as plt
+from unityagents import UnityEnvironment
+
 from tools.rl_constants import BrainSet, Action
 from tools.scores import Scores
-from collections import OrderedDict
 from simulation.utils import default_preprocess_brain_actions_for_env_fn, default_step_agents_fn, default_step_episode_agents_fn
 from tools.misc import set_seed
 
 plt.style.use('ggplot')
 np.set_printoptions(precision=3, linewidth=120)
-import warnings
 warnings.filterwarnings("ignore")
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -30,11 +31,19 @@ class UnityEnvironmentSimulator:
         self.training_scores = None
         self.evaluation_scores = None
 
-    def reset_env(self, train_mode: bool):
+    def reset_env(self, train_mode: bool) -> None:
+        """ Reset the environment
+        :param train_mode: Whether to reset in training mode
+        :return: None
+        """
         env_info = self.env.reset(train_mode=train_mode)
         self.env_info = env_info
 
-    def get_next_states(self, brain_set: BrainSet):
+    def get_next_states(self, brain_set: BrainSet) -> Dict[str, torch.Tensor]:
+        """ Get the next brain states from the environment
+        :param brain_set: The agent brains
+        :return: Mapping from brain_name to a torch tensor of brain states
+        """
         brain_states = {}
         for brain_name, brain in brain_set:
             brain_info = self.env_info[brain_name]
@@ -50,7 +59,26 @@ class UnityEnvironmentSimulator:
             brain_states[brain_name] = states
         return brain_states
 
-    def step(self, brain_set: BrainSet, brain_states: dict, random_actions: bool = False, preprocess_brain_actions_for_env_fn: Callable = default_preprocess_brain_actions_for_env_fn) -> dict:
+    def step(
+            self,
+            brain_set: BrainSet,
+            brain_states: Dict[str, np.ndarray],
+            random_actions: bool = False,
+            preprocess_brain_actions_for_env_fn: Callable = default_preprocess_brain_actions_for_env_fn
+    ) -> Dict[str, dict]:
+        """ Step the simulation, getting the next environment frame
+        :param brain_set: The agent brains
+        :param brain_states: Mapping from brain_name to a numpy ndarray of states
+        :param random_actions: Whether to obtain random or learned actions
+        :param preprocess_brain_actions_for_env_fn: Function for preprocessing brain actions prior to
+            passing to the environment
+        :return: Mapping from brain_name to the the next environment frame, which includes:
+            - states
+            - actions
+            - next_states
+            - rewards
+            - dones
+        """
         if random_actions:
             brain_actions: Dict[str, List[Action]] = brain_set.get_random_actions(brain_states)
         else:
@@ -73,32 +101,45 @@ class UnityEnvironmentSimulator:
             }
         return output
 
-    def train(self, brain_set: BrainSet, solved_score: Optional[float] = None,
-              n_episodes=2000, max_t=1000, sliding_window_size: int = 100,
-              step_agents_fn=default_step_agents_fn,
-              step_episode_agents_fn=default_step_episode_agents_fn,
-              brain_reward_accumulation_fn=lambda rewards: np.array(rewards),
-              episode_reward_accumulation_fn = lambda brain_episode_scores: float(np.mean([np.mean(brain_episode_scores[brain_name]) for brain_name in brain_episode_scores])),
-              preprocess_brain_actions_for_env_fn: Callable = default_preprocess_brain_actions_for_env_fn,
-              end_episode_critieria = np.all,
-              end_of_episode_score_display_fn: Callable = lambda i_episode, episode_aggregated_score, training_scores: '\rEpisode {}\tScore: {:.2f}\tAverage Score: {:.2f}'.format(i_episode, episode_aggregated_score, training_scores.get_mean_sliding_scores()),
-              aggregate_end_of_episode_score_fn: Callable = lambda training_scores: training_scores.get_mean_sliding_scores()
-              ) -> Tuple[BrainSet, Scores, int, float]:
-        """Train the agent in the environment
-
-        Args:
-            brain_set (BrainSet): The agent brains to undergo training
-            solved_score (float): The score required to be obtained (calculated as the mean
-                of the sliding window scores) in order to mark the task as solved
-            n_episodes (int): The number of episodes to train over
-            max_t (int): The maximum number of timesteps allowed in each episode
-            sliding_window_size (int): The number of historical scores to average over
-            step_agents_fn (Callable): Method for preparing experiences
-            brain_reward_accumulation_fn (Callable):
-        Returns:
-            agent (Agent): The trained agent
-            scores (Scores): Scores object containing all historic and sliding-window scores
+    def train(
+            self,
+            brain_set: BrainSet,
+            solved_score: Optional[float] = None,
+            n_episodes=2000, max_t=1000, sliding_window_size: int = 100,
+            step_agents_fn: Callable = default_step_agents_fn,
+            step_episode_agents_fn: Callable = default_step_episode_agents_fn,
+            brain_reward_accumulation_fn: Callable = lambda rewards: np.array(rewards),
+            episode_reward_accumulation_fn: Callable = lambda brain_episode_scores: float(np.mean([np.mean(brain_episode_scores[brain_name]) for brain_name in brain_episode_scores])),
+            preprocess_brain_actions_for_env_fn: Callable = default_preprocess_brain_actions_for_env_fn,
+            end_episode_criteria: Callable = np.all,
+            end_of_episode_score_display_fn: Callable = lambda i_episode, episode_aggregated_score, training_scores: '\rEpisode {}\tScore: {:.2f}\tAverage Score: {:.2f}'.format(i_episode, episode_aggregated_score, training_scores.get_mean_sliding_scores()),
+            aggregate_end_of_episode_score_fn: Callable = lambda training_scores: training_scores.get_mean_sliding_scores()
+            ) -> Tuple[BrainSet, Scores, int, float]:
         """
+        Train a set of agents (brain-set) in an environment
+        :param brain_set: The agent brains to undergo training
+        :param solved_score: The score (averaged over sliding_window_size episodes) required to consider the task solved
+        :param n_episodes: The number of episodes to train over
+        :param max_t: The maximum number of time steps allowed in each episode
+        :param sliding_window_size: Size of the sliding window to average episode scores over
+        :param step_agents_fn: Function used to update the agents with a new experience sampled from the environment
+        :param step_episode_agents_fn: Function used to step the agents at the end of each episode
+        :param preprocess_brain_actions_for_env_fn: Function used to preprocess actions from the agents before
+         passing to the environment
+        :param brain_reward_accumulation_fn:Function used to accumulate rewards for each brain
+        :param episode_reward_accumulation_fn: Function used to aggregate rewards across brains
+        :param end_of_episode_score_display_fn: Function used to print out end-of-episode scalar score
+        :param end_episode_criteria: Function acting on a list of booleans
+            (identifying whether that agent's episode has terminated) to determine whether the episode is finished
+        :param aggregate_end_of_episode_score_fn: Function used to aggregate the end-of-episode score function.
+            Defaults to averaging over the past sliding_window_size episode scores
+        :return: Tuple of  (brain_set, Scores, i_episode, average_score)
+            brain_set (BrainSet): The trained BrainSet
+            Scores (Scores): Scores object containing all historic and sliding-window scores
+            i_episode (int): The number of episodes required to solve the task
+            average_score (float): The final averaged score
+        """
+
         for brain in brain_set.brains():
             for agent in brain.agents:
                 agent.set_mode('train')
@@ -135,7 +176,7 @@ class UnityEnvironmentSimulator:
                 for brain_name in brain_set.names():
                     all_dones.extend(next_brain_environment[brain_name]['dones'])
 
-                if end_episode_critieria(all_dones):
+                if end_episode_criteria(all_dones):
                     break
 
             # Step episode for agents
@@ -166,8 +207,21 @@ class UnityEnvironmentSimulator:
             max_t: int,
             step_agents_fn: Callable = default_step_agents_fn,
             preprocess_brain_actions_for_env_fn: Callable = default_preprocess_brain_actions_for_env_fn,
-            end_episode_critieria=np.all,
-    ):
+            end_episode_criteria=np.all,
+    ) -> None:
+        """
+        Act randomly in the environment, storing experience tuples in trajectory/memory buffers.
+        Used to initialize memory objects such as prioritized experience replay
+        :param brain_set: The agent brains to undergo training
+        :param n_episodes: The number of episodes to train over
+        :param step_agents_fn: Function used to update the agents with a new experience sampled from the environment
+        :param preprocess_brain_actions_for_env_fn: Function used to preprocess actions from the agents before
+         passing to the environment
+        :param max_t: The maximum number of time steps allowed in each episode
+        :param end_episode_criteria: Function acting on a list of booleans
+            (identifying whether that agent's episode has terminated) to determine whether the episode is finished
+        :return: None
+        """
         print("Performing warmup with {} episodes and max_t={}".format(n_episodes, max_t))
         for brain in brain_set.brains():
             for agent in brain.agents:
@@ -190,32 +244,39 @@ class UnityEnvironmentSimulator:
                 for brain_name in brain_set.names():
                     all_dones.extend(next_brain_environment[brain_name]['dones'])
 
-                if end_episode_critieria(all_dones):
+                if end_episode_criteria(all_dones):
                     break
 
                 print('\rEpisode {}\tTimestep: {:.2f}'.format(i_episode, t), end="")
         print("Finished warmup in {}s".format(round(time.time() - t1)))
 
-    def evaluate(self, brain_set: BrainSet, n_episodes=5, max_t=1000,
-                 brain_reward_accumulation_fn=lambda rewards: np.array(rewards),
-                 episode_reward_accumulation_fn=lambda brain_episode_scores: float(
-                     np.mean([np.mean(brain_episode_scores[brain_name]) for brain_name in brain_episode_scores])),
-                 end_of_episode_score_display_fn: Callable = lambda i_episode, episode_aggregated_score,
-                                                                    training_scores: '\rEpisode {}\tScore: {:.2f}\tAverage Score: {:.2f}'.format(
-                     i_episode, episode_aggregated_score, training_scores.get_mean_sliding_scores()),
-                 sliding_window_size=100,
-                 end_episode_critieria=np.all
-                 ) -> Tuple[BrainSet, float]:
-        """Train the agent in the environment
-
-        Args:
-            brain_set (BrainSet): The agent brains to undergo training
-            n_episodes (int): The number of episodes to train over
-            max_t (int): The maximum number of timesteps allowed in each episode
-            brain_reward_accumulation_fn (Callable):
-        Returns:
-            agent (Agent): The trained agent
-            scores (Scores): Scores object containing all historic and sliding-window scores
+    def evaluate(
+            self,
+            brain_set: BrainSet,
+            n_episodes: int = 5,
+            max_t: int = 1000,
+            brain_reward_accumulation_fn: Callable = lambda rewards: np.array(rewards),
+            episode_reward_accumulation_fn: Callable = lambda brain_episode_scores: float(
+                np.mean([np.mean(brain_episode_scores[brain_name]) for brain_name in brain_episode_scores])
+            ),
+            end_of_episode_score_display_fn: Callable = lambda i_episode, episode_aggregated_score,
+                                                                training_scores: '\rEpisode {}\tScore: {:.2f}\tAverage Score: {:.2f}'.format(
+                 i_episode, episode_aggregated_score, training_scores.get_mean_sliding_scores()),
+            sliding_window_size: int = 100,
+            end_episode_criteria: Callable = np.all
+    ) -> Tuple[BrainSet, float]:
+        """
+        Evaluate the agent in the environment
+        :param brain_set: The agent brains to undergo training
+        :param n_episodes: The number of episodes to train over
+        :param max_t: The maximum number of time steps allowed in each episode
+        :param brain_reward_accumulation_fn:Function used to accumulate rewards for each brain
+        :param episode_reward_accumulation_fn: Function used to aggregate rewards across brains
+        :param end_of_episode_score_display_fn: Function used to print out end-of-episode scalar score
+        :param sliding_window_size: Size of the sliding window to average episode scores over
+        :param end_episode_criteria: Function acting on a list of booleans
+            (identifying whether that agent's episode has terminated) to determine whether the episode is finished
+        :return: Tuple of  (brain_set, average_score)
         """
         for brain in brain_set.brains():
             for agent in brain.agents:
@@ -248,7 +309,7 @@ class UnityEnvironmentSimulator:
                 for brain_name in brain_set.names():
                     all_dones.extend(next_brain_environment[brain_name]['dones'])
 
-                if end_episode_critieria(all_dones):
+                if end_episode_criteria(all_dones):
                     break
 
             episode_aggregated_score = episode_reward_accumulation_fn(brain_episode_scores)
@@ -258,13 +319,13 @@ class UnityEnvironmentSimulator:
         return brain_set, average_score
 
     def get_agent_performance(self, brain_set: BrainSet, n_train_episodes: int = 100, n_eval_episodes=10, sliding_window_size: int = 100, max_t: int = 1000) -> tuple:
-        """
+        """ Get the performance of the agents (brain-set) in the environment
         :param brain_set: BrainSet to get performance for
         :param n_train_episodes: Number of episodes to train agent over
         :param n_eval_episodes: Number of evaluation episodes to average over
-        :param sliding_window_size:
-        :param max_t: Max number of timesteps per episode
-        :return: Tuple of performance (Mean epsiode score) and training supplementary information
+        :param sliding_window_size: Size of the sliding window to average scores over
+        :param max_t: Max number of time steps per episode
+        :return: Tuple of performance (Mean episode score) and training supplementary information
         """
         t1 = time.time()
         # TODO: Allow for early stopping if performance is poor

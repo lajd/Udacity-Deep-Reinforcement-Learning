@@ -1,4 +1,4 @@
-# Execute this script from the /tasks/reacher_continuous_control directory
+# Execute this script from the /tasks/reacher directory
 # bash ./setup_linux.sh
 
 mkdir -p environments

@@ -3,7 +3,6 @@ import torch
 import numpy as np
 from tasks.tennis.solutions.utils import get_simulator
 from tasks.tennis.solutions.mappo.train_mappo import get_solution_brain_set, MAX_T, SOLUTIONS_CHECKPOINT_DIR
-from simulation.utils import multi_agent_step_episode_agents_fn, multi_agent_step_agents_fn
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -26,5 +25,5 @@ if __name__ == '__main__':
         n_episodes=10,
         max_t=MAX_T,
         brain_reward_accumulation_fn=lambda rewards: np.max(rewards),
-        end_episode_critieria=np.all
+        end_episode_criteria=np.all
     )

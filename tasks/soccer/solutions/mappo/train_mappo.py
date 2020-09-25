@@ -81,7 +81,7 @@ def get_solution_brain_set():
                 agent_id=key,
                 state_size=GOALIE_STATE_SIZE,
                 action_size=len(range(*GOALIE_ACTION_DISCRETE_RANGE)),
-                random_seed=SEED,
+                seed=SEED,
                 map_agent_to_state_slice={
                     "GoalieBrain_0": lambda t: t[:, 0:336],
                     "GoalieBrain_1": lambda t: t[:, 336:672],
@@ -132,7 +132,6 @@ def get_solution_brain_set():
                 std_scale_scheduler=ParameterScheduler(initial=0.8,
                                                        lambda_fn=lambda i: 0.8 * 0.999 ** i,
                                                        final=0.2),
-                seed=SEED
             )
             print("Goalie is: {}".format(goalie_agent.online_actor_critic))
         goalie_agents.append(goalie_agent)
@@ -163,7 +162,7 @@ def get_solution_brain_set():
                 agent_id=key,
                 state_size=STRIKER_STATE_SIZE,
                 action_size=len(range(*STRIKER_ACTION_DISCRETE_RANGE)),
-                random_seed=SEED,
+                seed=SEED,
                 map_agent_to_state_slice={
                     "GoalieBrain_0": lambda t: t[:, 0:336],
                     "GoalieBrain_1": lambda t: t[:, 336:672],
@@ -214,7 +213,6 @@ def get_solution_brain_set():
                 std_scale_scheduler=ParameterScheduler(initial=0.8,
                                                        lambda_fn=lambda i: 0.8 * 0.999 ** i,
                                                        final=0.2),
-                seed=SEED
             )
             print("Striker is: {}".format(striker_agent.online_actor_critic))
         striker_agents.append(striker_agent)
@@ -286,7 +284,7 @@ if __name__ == '__main__':
         step_episode_agents_fn=multi_agent_step_episode_agents_fn,
         end_of_episode_score_display_fn=end_of_episode_score_display_fn,
         aggregate_end_of_episode_score_fn=aggregate_end_of_episode_score_fn,
-        end_episode_critieria=np.all
+        end_episode_criteria=np.all
     )
 
     if training_scores.get_mean_sliding_scores() >= SOLVE_SCORE:

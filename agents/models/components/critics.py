@@ -1,8 +1,6 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from typing import Optional
-import numpy as np
 from tools.misc import set_seed
 from agents.models.components import BaseComponent
 from tools.misc import ensure_batch

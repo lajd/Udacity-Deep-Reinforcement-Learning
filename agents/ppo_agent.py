@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, List
 from agents.models.ppo import PPO_Actor_Critic
 from agents.memory.trajectories import Trajectories
 import torch.nn as nn
@@ -13,35 +13,55 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 class PPOAgent(Agent):
-    """Interacts with and learns from the environment.
-
-    Code partially adapted from https://github.com/higgsfield/RL-Adventure-2/blob/master/3.ppo.ipynb
+    """Implements the PPO agent (https://openai.com/blog/openai-baselines-ppo/)
+    with generalized advantage estimation (https://arxiv.org/pdf/1506.02438.pdf)
     """
     def __init__(
             self,
-            state_size,
-            action_size,
-            random_seed,
-            actor_critic_factory: lambda: PPO_Actor_Critic,
-            optimizer_factory: Callable,
-            grad_clip=1.,
-            ppo_clip=0.2,
-            gamma=0.99,
-            batch_size=1024,
-            gae_factor=0.95,
-            epsilon=0.2,
-            beta_scheduler=ParameterScheduler(initial=0.02,
-                                              lambda_fn=lambda i: 0.02 * 0.995 ** i,
-                                              final=1e-4),
-            std_scale_scheduler=ParameterScheduler(initial=0.5,
-                                              lambda_fn=lambda i: 0.5 * 0.995 ** i,
-                                              final=0.2),
+            state_size: int,
+            action_size: int,
+            seed: int,
+            actor_critic_factory: Callable[[], PPO_Actor_Critic],
+            optimizer_factory: Callable[[torch.nn.Module.parameters], torch.optim.Optimizer],
+            grad_clip: float = 1.,
+            gamma: float = 0.99,
+            batch_size: int = 1024,
+            gae_factor: float = 0.95,
+            epsilon: float = 0.2,
+            beta_scheduler: ParameterScheduler = ParameterScheduler(
+                initial=0.02,
+                lambda_fn=lambda i: 0.02 * 0.995 ** i,
+                final=1e-4
+            ),
+            std_scale_scheduler: ParameterScheduler = ParameterScheduler(
+                initial=0.5,
+                lambda_fn=lambda i: 0.5 * 0.995 ** i,
+                final=0.2
+            ),
             continuous_actions: bool = False,
             continuous_action_range_clip: tuple = (-1, 1),
-            min_batches_for_training=32,
-            num_learning_updates=4,
-            seed=None,
+            min_batches_for_training: int = 32,
+            num_learning_updates: int = 4,
     ):
+        """
+        :param state_size: The state size of the agent
+        :param action_size: The action size of the agent
+        :param seed: Seed for reproducibility
+        :param actor_critic_factory: Function returning the actor-critic model
+        :param optimizer_factory: Function returning the optimizer for the actor-critic model
+        :param grad_clip: Clip absolute value of the gradient above this value
+        :param gamma: Discount factor
+        :param batch_size: SGD minibatch size
+        :param gae_factor: Factor used to down-weight rewards, presented as lambda in the GAE paper
+        :param epsilon: Small constant parameter to clip the objective function by
+        :param beta_scheduler: Scheduler for parameter beta, the coefficient for the entropy term
+        :param std_scale_scheduler: Scheduler for the std of the normal distribution used to sample
+            actions from in the policy network. Only used for continuous actions
+        :param continuous_actions: Whether the action space is continuous or discrete
+        :param continuous_action_range_clip: The range to clip continuous actions above. Only used for continuous actions
+        :param min_batches_for_training: Minimum number of batches to accumulate before performing training
+        :param num_learning_updates: Number of epochs to train for over before discarding samples
+        """
         super().__init__(state_size, action_size)
 
         if seed is not None:
@@ -51,9 +71,8 @@ class PPOAgent(Agent):
         self.target_actor_critic.load_state_dict(self.online_actor_critic.state_dict())
 
         self.optimizer = optimizer_factory(self.online_actor_critic.parameters())
-        self.current_trajectory_memory = Trajectories(random_seed)
+        self.current_trajectory_memory = Trajectories(seed)
         self.grad_clip = grad_clip
-        self.ppo_clip = ppo_clip
         self.gamma = gamma
         self.batch_size = batch_size
         self.gae_factor = gae_factor
@@ -90,14 +109,13 @@ class PPOAgent(Agent):
         else:
             raise ValueError('Invalid mode: {}'.format(mode))
 
-    def get_action(self, states, *args, **kwargs):
-        """Returns actions for given states as per current policy.
-
-        Returns
-        ======
-            action (Tensor): predicted action or inputed action
-            log_prob (Tensor): log probability of current action distribution
-            value (Tensor): estimate value function
+    def get_action(self, states, *args, **kwargs) -> Action:
+        """Returns actions for given states as per target policy.
+        :param states: States from environment
+        :return: Action containing:
+            - action (Tensor): predicted action
+            - log_prob (Tensor): log probability of current action distribution
+            - value (Tensor): estimate value function
         """
         # Use the target_actor_critic to get new actions
         states = states.to(device)
@@ -116,18 +134,27 @@ class PPOAgent(Agent):
         """ Add experience to current trajectory"""
         self.current_trajectory.append(experience)
 
-    @staticmethod
-    def compute_gae(next_value, rewards, masks, values, gamma=0.99, tau=0.95):
+    def compute_gae(self, next_value: List[torch.Tensor], rewards: List[torch.Tensor], masks: List[torch.Tensor], values: List[torch.Tensor]):
+        """ Compute the generalized advantage estimate
+        Adapted from https://github.com/higgsfield/RL-Adventure-2/blob/master/2.gae.ipynb
+        and based off https://arxiv.org/pdf/1506.02438.pdf
+        :param next_value: Value estimate of terminal state
+        :param rewards: Trajectory rewards
+        :param masks: Trajectory terminal states
+        :param values: Trajectory value estimates
+        :return: List of GAE returns
+        """
         values = values + [next_value]
         gae = 0
         returns = []
         for step in reversed(range(len(rewards))):
-            delta = rewards[step] + gamma * values[step + 1] * masks[step] - values[step]
-            gae = delta + gamma * tau * masks[step] * gae
+            delta = rewards[step] + self.gamma * values[step + 1] * masks[step] - values[step]
+            gae = delta + self.gamma * self.gae_factor * masks[step] * gae
             returns.insert(0, gae + values[step])
         return returns
 
     def process_trajectory(self):
+        """ Process the current trajectory and store in the trajectory buffer"""
         log_probs = []
         values = []
         states = []
@@ -136,8 +163,6 @@ class PPOAgent(Agent):
         masks = []
         joint_states = []
         joint_actions = []
-
-        terminal_experience = self.current_trajectory[-1]
 
         for i in range(len(self.current_trajectory)):
             experience = self.current_trajectory[i].to(device)
@@ -155,11 +180,10 @@ class PPOAgent(Agent):
             rewards.append(reward)
             masks.append(terminal)
 
-            if experience.joint_state is not None:
-                joint_states.append(experience.joint_state.view(1, -1))
-            if experience.joint_action is not None:
-                joint_actions.append(experience.joint_action.view(1, -1))
+            joint_states.append(experience.joint_state.view(1, -1) if experience.joint_state is not None else None)
+            joint_actions.append(experience.joint_action.view(1, -1) if experience.joint_action is not None else None)
 
+        terminal_experience = self.current_trajectory[-1]
         next_value = self.get_action(
             terminal_experience.state,
             terminal_experience.joint_state.view(1, -1) if terminal_experience.joint_state is not None else None,
@@ -178,27 +202,15 @@ class PPOAgent(Agent):
         joint_actions = torch.cat(joint_actions) if len(joint_actions) > 1 else None
 
         advantage = returns - values
-        new_results = []
 
-        for i in range(len(states)):
-            new_results.append(
-                (
-                    states[i],
-                    actions[i],
-                    log_probs[i],
-                    returns[i],
-                    advantage[i],
-                    joint_states[i] if joint_states is not None else None,
-                    joint_actions[i] if joint_actions is not None else None
-                )
-            )
+        processed_trajectory = list(zip(states, actions, log_probs, returns, advantage, joint_states, joint_actions))
 
-        self.current_trajectory_memory.add(new_results)
+        self.current_trajectory_memory.add(processed_trajectory)
         # reset trajectory
         self.current_trajectory = []
 
-    def _learn(self, sampled_log_probs, sampled_states, sampled_actions, sampled_advantages, sampled_returns):
-
+    def _learn(self, sampled_log_probs: torch.Tensor, sampled_states: torch.Tensor, sampled_actions: torch.Tensor, sampled_advantages: torch.Tensor, sampled_returns: torch.Tensor):
+        """ Optimize the surrogate objective function over multiple epochs"""
         _, log_probs, entropy_loss, values = self.online_actor_critic(
             state=sampled_states, action=sampled_actions
         )
@@ -222,7 +234,8 @@ class PPOAgent(Agent):
         nn.utils.clip_grad_norm_(self.online_actor_critic.parameters(), self.grad_clip)
         self.optimizer.step()
 
-    def step_episode(self, episode, *args, **kwargs):
+    def step_episode(self, episode: int, *args, **kwargs):
+        """ Perform end-of-episode updates """
         self.process_trajectory()
         if len(self.current_trajectory_memory) >= self.batch_size * self.min_batches_for_training:
             for _ in range(self.num_learning_updates):

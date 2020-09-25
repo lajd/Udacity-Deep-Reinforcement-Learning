@@ -22,5 +22,5 @@ if __name__ == '__main__':
         brain_set,
         n_episodes=10,
         max_t=MAX_T,
-        end_episode_critieria=np.all
+        end_episode_criteria=np.all
     )

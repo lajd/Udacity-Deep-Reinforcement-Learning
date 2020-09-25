@@ -84,8 +84,6 @@ class MAPPO_Actor_Critic(nn.Module):
         """
         assert min_std > 0 and scale >= 0, (min_std, scale)
 
-        bsize = len(agent_state)
-
         if self.continuous_actions:
             action_mean = self.actor(agent_state)
             std = F.hardtanh(self.std, min_val=min_std, max_val=scale)

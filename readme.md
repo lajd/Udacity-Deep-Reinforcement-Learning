@@ -341,5 +341,41 @@ Below, we discuss the algorithm at a high level, along with the implemented exte
  
  - ### [Proximal Policy Optimization (PPO)](https://arxiv.org/abs/1707.06347)
     ###### Overview
-    The PPO method was introduced in 2017 and is an on-policy learning algorithm
+    The PPO method was introduced in 2017 and is an on-policy learning algorithm which alternates between sampling data
+    from the environment and optimizing a surrogate objective function by gradient descent, in contrast to other
+    policy gradient methods which perform a gradient update on each sample before discarding the sample. The PPO algorithm
+    has experimentally been shown to offer better sampling complexity than other policy gradient algorithms, while showing robustness
+    and simplicity over other families of algorithms such as q-learning. 
+   
+    ###### Clipped Surrogate Objective Function
+    The PPO algorithm borrows the surrogate objective function from the [Trust Region Policy Optimization (TRPO)](https://arxiv.org/abs/1502.05477)
+    algorithm, which states:
     
+    L<sup>CPI</sup>(&theta;) = &expectation;<sub>t</sub>[A<sub>t</sub> &pi;<sub>&theta;</sub>(a<sub>t</sub> | s<sub>t</sub>) / &pi;<sub>&theta;</sub>(a<sub>t</sub> | s<sub>t</sub>) = &expectation;<sub>t</sub>[r<sub>t</sub>(&theta;) A<sub>t</sub>]
+    
+    The clipped surrogate objective function that is proposed in PPO is:
+   
+    L<sup>CLIP</sup>(&theta;) = &expectation;<sub>t</sub>[min(r<sub>t</sub>(&theta;)A<sub>t</sub>, clip(r<sub>t</sub>(&theta;), 1 - &epsilon;, 1 + &epsilon;) A<sub>t</sub>]
+    
+    where &epsilon; is a small constant, such as &epsilon;=0.02. The first term is the same as L<sup>CPI</sup>, while the second term clips r<sub>t</sub> to be within
+    the interval [1 - &epsilon;, 1 + &epsilon;]. By taking the minimum of the unclipped and clipped objective, we obtain a lower bound for the final objective function
+    which improves the stability of the algorithm.
+    
+    During training the policy function is typically guided by a state-value function V(s), which is included in the optimization function as
+    
+    L<sup>VF</sup><sub>t</sub> = (V<sub>&theta;</sub>(s<sub>t</sub>) - V<sub>t</sub><sup>targ</sup>)<sup>2</sup>
+    
+    and an additional entropy term of the policy distribution which helps to ensure sufficient exploration,
+    
+    L<sup>entropy</sup> = S[&pi;] (s<sub>t</sub>)
+    
+    Resulting in a final loss function of L<sub>t</sub> =  L<sub>t</sub><sup>CLIP</sup>(&theta;) + c<sub>1</sub>L<sup>VF</sup><sub>t</sub> + c<sub>2</sub>L<sub>t</sub><sup>entropy</sup> 
+    
+    where c1 and c2 are constants.
+    
+    ###### MAPPO
+    The PPO algorithm above can be extended to the multi-agent scenario in an analagous way as DDPG to MADDPG. This
+    involves passing the state and actions of all other agents in the environment to the  (joint_state, joint_actions)
+    to the Critic of each agent during training, whos value estimate will assist in guiding the learning of the policy (Actor)
+    network. During evaluation, only the policy network is used, and the agents are not provided any external information regarding 
+    other agents.

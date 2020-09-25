@@ -91,7 +91,7 @@ if __name__ == '__main__':
         brain_set=brain_set,
         n_episodes=int(params['WARMUP_STEPS'] / params['MAX_T']),
         max_t=params['MAX_T'],
-        end_episode_critieria=np.any
+        end_episode_criteria=np.any
     )
 
     # Perform training
@@ -100,7 +100,7 @@ if __name__ == '__main__':
         solved_score=SOLVED_SCORE,
         max_t=params["MAX_T"],
         n_episodes=default_cfg['N_EPISODES'],
-        end_episode_critieria=np.any
+        end_episode_criteria=np.any
     )
 
     scores = Scores(initialize_scores=training_scores.scores)

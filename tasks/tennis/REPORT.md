@@ -3,7 +3,7 @@
 [matd3_results_image]: solutions/maddpg/solution_checkpoint/independent_madtd3_training_scores.png "MATD3 Training"
 
 # Tennis MAPPO/MATD3 Introduction
-Please see the [repository overview](../../../../README.md) as well as the [task description](../../TASK_DETAILS.md)
+Please see the [repository overview](../../../../README.md) as well as the [task description](./TASK_DETAILS.md)
 before reading this report. The theoretical details of the utilized algorithms can be found in the [repository overview](../../../../README.md).
 
 In this environment, two agents control rackets to bounce a ball over a net. If an agent hits the ball over the net, it receives a reward of +0.1.  If an agent lets a ball hit the ground or hits the ball out of bounds, it receives a reward of -0.01.  Thus, the goal of each agent is to keep the ball in play.
@@ -120,7 +120,6 @@ attributes (states/actions) and the attributes of other agents.
  ),
  'trajectory_memory': <agents.memory.trajectories.Trajectories at 0x7f1e08262748>,
  'grad_clip': 1.0,
- 'ppo_clip': 0.2,
  'gamma': 0.99,
  'batch_size': 512,
  'gae_factor': 0.95,
@@ -182,7 +181,6 @@ The MAPPO algorithm, beign on-policy, is shown to be relatively sample inefficie
 MATD3, where MAPPO achieved a score of > 1 after 3200 episodes compared to 800 episodes by MATD3. The MATD3 algorithm takes
 advantage of prioritized experience replay (PER) to sample experience based on the amount of information the experience provides, while
 the MAPPO algorithm has no such intelligent memory buffer and simply discards trajectories of experience after a few learning epochs.
-
 
 
 ## Ideas for Future Work

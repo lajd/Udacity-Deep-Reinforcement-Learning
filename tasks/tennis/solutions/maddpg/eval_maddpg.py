@@ -24,5 +24,5 @@ if __name__ == '__main__':
         n_episodes=10,
         max_t=MAX_T,
         brain_reward_accumulation_fn=lambda rewards: np.max(rewards),
-        end_episode_critieria=np.all
+        end_episode_criteria=np.all
     )

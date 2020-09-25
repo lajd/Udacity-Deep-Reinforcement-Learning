@@ -1,12 +1,12 @@
-name: drlnd
+name: drl_toolbox
 channels:
   - pytorch
   - defaults
 dependencies:
   - _libgcc_mutex=0.1=main
   - blas=1.0=mkl
-  - ca-certificates=2020.1.1=0
-  - certifi=2020.4.5.1=py36_0
+  - ca-certificates=2020.7.22=0
+  - certifi=2020.6.20=py36_0
   - cudatoolkit=10.2.89=hfd86e86_1
   - freetype=2.9.1=h8a8886c_1
   - intel-openmp=2020.0=166
@@ -25,24 +25,27 @@ dependencies:
   - mkl_random=1.1.0=py36hd6b4f25_0
   - ncurses=6.2=he6710b0_1
   - ninja=1.9.0=py36hfd86e86_0
-  - numpy-base=1.18.1=py36hde5b4d6_1
+  - numpy-base=1.19.1=py36hfa32c7d_0
   - olefile=0.46=py36_0
-  - openssl=1.1.1g=h7b6447c_0
+  - openssl=1.1.1h=h7b6447c_0
   - pillow=7.1.2=py36hb39fc2d_0
   - pip=20.0.2=py36_1
   - python=3.6.10=hcf32534_1
-  - pytorch=1.5.0=py3.6_cuda10.2.89_cudnn7.6.5_0
+  - pytorch=1.6.0=py3.6_cuda10.2.89_cudnn7.6.5_0
   - readline=8.0=h7b6447c_0
   - setuptools=46.1.3=py36_0
   - six=1.14.0=py36_0
   - sqlite=3.31.1=h62c20be_1
   - tk=8.6.8=hbc83047_0
-  - torchvision=0.6.0=py36_cu102
+  - torchvision=0.7.0=py36_cu102
   - wheel=0.34.2=py36_0
   - xz=5.2.5=h7b6447c_0
   - zlib=1.2.11=h7b6447c_3
   - zstd=1.3.7=h0b5b093_0
   - pip:
+    - absl-py==0.10.0
+    - astor==0.8.1
+    - attrs==20.2.0
     - ax-platform==0.1.9
     - backcall==0.1.0
     - bleach==1.5.0
@@ -51,12 +54,15 @@ dependencies:
     - decorator==4.4.2
     - defusedxml==0.6.0
     - docopt==0.6.2
+    - entrypoints==0.3
     - gast==0.3.3
     - gpytorch==1.1.1
     - grpcio==1.11.0
     - html5lib==0.9999999
     - imagecodecs==2020.2.18
     - imageio==2.8.0
+    - importlib-metadata==1.7.0
+    - iniconfig==1.0.1
     - ipykernel==5.2.1
     - ipython==7.13.0
     - ipython-genutils==0.2.0
@@ -70,46 +76,60 @@ dependencies:
     - jupyter-console==6.1.0
     - jupyter-core==4.6.3
     - kiwisolver==1.2.0
+    - markdown==3.2.2
     - markupsafe==1.1.1
     - matplotlib==3.2.1
     - mistune==0.8.4
+    - more-itertools==8.5.0
     - nbconvert==5.6.1
     - nbformat==5.0.6
     - networkx==2.4
     - notebook==6.0.3
     - numpy==1.18.3
+    - packaging==20.4
+    - pandas==1.1.2
     - pandocfilters==1.4.2
     - parso==0.7.0
     - pexpect==4.8.0
     - pickleshare==0.7.5
     - plotly==4.7.1
+    - pluggy==0.13.1
     - prometheus-client==0.7.1
     - prompt-toolkit==3.0.5
     - protobuf==3.5.2
     - ptyprocess==0.6.0
+    - py==1.9.0
     - pygments==2.6.1
+    - pyparsing==2.4.7
     - pyrsistent==0.16.0
+    - pytest==6.0.2
     - python-dateutil==2.8.1
     - pytz==2020.1
     - pywavelets==1.1.1
+    - pyyaml==5.3.1
     - pyzmq==19.0.0
     - qtconsole==4.7.3
     - qtpy==1.9.0
     - retrying==1.3.3
     - scikit-image==0.17.2
     - scikit-learn==0.23.1
+    - scipy==1.5.2
     - send2trash==1.5.0
     - tensorboard==1.7.0
     - tensorflow==1.7.1
+    - termcolor==1.1.0
     - terminado==0.8.3
     - testpath==0.4.4
     - threadpoolctl==2.0.0
     - tifffile==2020.5.11
+    - toml==0.10.1
     - torch==0.4.0
     - tornado==6.0.4
     - traitlets==4.3.3
     - unityagents==0.4.0
+    - wcwidth==0.2.5
     - werkzeug==1.0.1
     - widgetsnbextension==3.5.1
-prefix: /home/jon/anaconda3/envs/drlnd
+    - zipp==3.2.0
+prefix: /home/jon/anaconda3/envs/drl_toolbox
 

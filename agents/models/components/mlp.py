@@ -33,7 +33,7 @@ class MLP(BaseComponent):
 
         mlp_layers.append(first_layer)
 
-        if len(layer_sizes) > 2:
+        if len(layer_sizes) == 2:
             mlp_layers.append(activation_function)
 
         previous_output = layer_sizes[1]

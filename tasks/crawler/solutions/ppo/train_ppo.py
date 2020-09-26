@@ -33,7 +33,7 @@ def get_solution_brain_set():
     agent = PPOAgent(
         state_size=STATE_SIZE,
         action_size=ACTION_SIZE,
-        random_seed=SEED,
+        seed=SEED,
         actor_critic_factory=lambda: PPO_Actor_Critic(
             actor_model=MLP(
                 layer_sizes=(STATE_SIZE, 128, 128, ACTION_SIZE),

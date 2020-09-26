@@ -74,6 +74,7 @@ class DDPGPolicy(Policy):
             action = np.clip(action, self.action_range[0], self.action_range[1])
         else:
             raise ValueError('Must provide either epsilon_scheduler or noise')
+
         return Action(value=action)
 
     def get_random_action(self, *args) -> Action:

@@ -21,13 +21,13 @@ these algorithms were not developed in this solution, but will be saved for a la
 
 # Solution Overview
 
-The solutions discussed in this report rely on the DDPG algorithm and it's TD3 variants.
+The solutions discussed in this report rely on the DDPG algorithm and it's TD3 variant.
 
-#### Shared brains
+In the 20-agent environment, the experiences from each agent are collected and stored in the same memory replay buffer. 
+All agents share the same brain (actor, critic and optimizer), and each agent can sample from the shared memory
+buffer and perform batch learning. In this way, the purpose of having multiple agents is just to sample multiple
+trajectories of experience from the environment for a single model to learn over. The model components are as follows:
 
-In the 20-agent environment, 20 instances of the agent are created and applied to independent experience streams sampled
-from the environment. All architectures in this solution use a shared brain, where the following model components are shared
-across all agent instances:
 - Memory
     - (Prioritized) replay buffer shared across all agents
     - Agents can sample from the experiences other agents have collected
@@ -53,79 +53,10 @@ across all agent instances:
 - Critic Optimizer Scheduler
     - Learning rate scheduler for the critic optimizer
 
-### DDPG Solution
-
-#### Setup and Architecture
-The DDPG actor/critic models are simple MLPs with leaky_relu activations as shown below:
-
-- Actor
-```
-Actor(
-  (fc1): Linear(in_features=33, out_features=256, bias=True)
-  (fc2): Linear(in_features=256, out_features=128, bias=True)
-  (fc3): Linear(in_features=128, out_features=4, bias=True)
-)
-```
-- Critic
-```
-Critic(
-  (fc1): Linear(in_features=33, out_features=256, bias=True)
-  (fc2): Linear(in_features=260, out_features=128, bias=True)
-  (fc3): Linear(in_features=128, out_features=1, bias=True)
-)
-```
-
-- Memory
-    - A standard (non-prioritized) replay buffer was shared across all instances of the agent
-
-- Exploration Noise
-    - The Ornstein-Uhlenbeck process was used to generate random noise for selecting actions
-
-Leaky relu activations were chosen as they demonstrated slightly better convergence and stability as compared to
-ReLus.
-
-The model hyper-parameters are given below:
-
-```
-NUM_AGENTS = 20
-NUM_EPISODES = 200
-SEED = 0
-BATCH_SIZE = 128
-REPLAY_BUFFER_SIZE = int(1e6)
-GAMMA = 0.99            # discount factor
-TAU = 5e-3              # for soft update of target parameters
-N_LEARNING_ITERATIONS = 10     # number of learning updates
-UPDATE_FREQUENCY = 20       # every n time step do update
-MAX_T = 1000
-CRITIC_WEIGHT_DECAY = 0.0
-ACTOR_WEIGHT_DECAY = 0.0
-MIN_PRIORITY = 1e-4
-LR_ACTOR = 1e-4  # learning rate of the actor
-LR_CRITIC = 1e-4  # learning rate of the critic
-POLICY_UPDATE_FREQUENCY = 1
-```
-
-
-##### Results
-
-Below we show the plot of mean episode scores (across all agents) versus episode number.
-
-![Trained Agent][image2]
-
-The environment was solved (mean reward of >=30 over 100 consecutive epsiodes) after 170 episodes. 
-The training time was substantial at roughly 4 hours, making hyper-parameter tuning and architecture modifications
-prohibitive.
-
-##### Discussion
-In general, the DDPG algorithm demonstrated relatively poor stability and convergence in this environment
--- In addition to the large training time, the model architecture and hyper parameters had a significant 
-impact on performance. These shortfalls prompted the extensions provided in the TD3 solution below. 
-
-
 ## TD3 Solution
 
 ##### Setup and Architecture
-The TD3 actor/critic models are again simple MLPs with leaky_relu activations as shown below:
+The TD3 actor/critic models are simple MLPs with leaky_relu activations as shown below:
 
 - Actor
 ```
@@ -151,7 +82,7 @@ TD3Critic(
 )
 ```
 
-Where the major difference is that the critic has been split into two independent streams, each learning an independent 
+Where the major difference between TD3 and DDPG is that the critic has been split into two independent streams, each learning an independent 
 estimate of the q-value. See the [TD3 section](../../../../README.md) of the readme for details of the TD3 architecture.
 
 - Memory
@@ -164,7 +95,7 @@ estimate of the q-value. See the [TD3 section](../../../../README.md) of the rea
     - Gaussian noise was used for both exploration and action evaluation. The use of Gaussian noise led to 
       slightly better convergence than the Ornstein-Uhlenbeck process.
 
-Again, Leaky relu activations were chosen as they demonstrated slightly better convergence and stability as compared to
+Leaky relu activations were chosen as they demonstrated slightly better convergence and stability as compared to
 ReLus.
 
 The model hyper-parameters are given below:
@@ -200,13 +131,14 @@ Below we show the plot of mean episode scores (across all agents) versus episode
 ![Trained Agent][image3]
 
 The environment was solved (mean reward of >=30) after 61 episodes. 
-The training time was substantial at roughly 1.5 hours, but much less so than the vanilla DDPG algorithm. 
+The training time was substantial at roughly 1.5 hours. In contrast, the vanilla DDPG algorithm with non-prioritized
+replay demonstrated poor convergence and increased sensitivity to hyperparameter choices (results for DDPG not
+shown as a result).
 
 ##### Discussion
-The TD3 algorithm demonstrated much greater stability and convergence properties as compared to DDPG,
-solving the environment in just 61 episodes as opposed to 170. We also note that the learning rate was much steeper
-than that of DDPG, where a score of ~35 is achieved after only 20 episodes, whereas a score of 35 was not achieved at all
-with DDPG.
+The TD3 algorithm demonstrated good stability, convergence and sample efficiency properties, solving the environment in 
+just 61 episodes. The task was learned very quickly, where the "solved" score of 30 was achieved in 
+only about 10 episodes, where another 50 episodes were required to bring the average score to > 30. 
 
 We note that the TD3 algorithm performed better using Gaussian noise for exploration and action evaluation rather than 
 the Ornstein-Uhlenbeck process, and the use of the prioritized replay buffer improved the initial learning rate as 
@@ -215,8 +147,8 @@ compared to the vanilla replay buffer.
 ## Ideas for Future Work
 There are a number of important extensions and ideas for future work, which we discuss below:
 ###### Robust hyper parameter and architecture tuning
-The performance of both DDPG, and also TD3 to a lesser extent, were found to be very sensitive to hyper parameters and
-model architectures. For example, changing the initial learning rate, the noise-distribution parameters and the number
+The performance of TD3 was found to be sensitive to hyper parameters and model architectures. 
+For example, changing the initial learning rate, the noise-distribution parameters and the number
 of hidden layers significantly. Previously for the Banana-Collector task we took advantage of [Pytorch's Ax package](https://ax.dev/) for
 hyper parameter tuning, and doing the same analysis here would be useful. One challenge preventing the usefulness of hyper parameter tuning
 is the length of time it takes to train in these environments. For this reason, it would be useful to develop heuristic measures of performance 
@@ -233,4 +165,3 @@ prioritized experience replay and the standard replay buffer
 ###### Implementation of distributed algorithms
 The time required for training was one of the main bottlenecks for development, making asynchronous/parallel 
 algorithms appealing. This becomes more important when we wish to perform intensive tasks such as hyper parameter tuning.
-

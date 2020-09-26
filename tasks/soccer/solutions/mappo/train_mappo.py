@@ -189,7 +189,7 @@ def get_solution_brain_set():
                             layer_sizes=params['striker_critic_state_featurizer_layer_size'],
                             with_batchnorm=params['batchnorm'],
                             dropout=params['critic_dropout'],
-                            seed=SEED
+                            seed=SEED,
                         ),
                         output_module=MLP(
                             layer_sizes=params['striker_critic_output_layer_size'],

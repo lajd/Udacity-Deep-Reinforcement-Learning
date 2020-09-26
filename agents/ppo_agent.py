@@ -198,8 +198,8 @@ class PPOAgent(Agent):
         values = torch.cat(values).detach()
         states = torch.cat(states)
         actions = torch.cat(actions)
-        joint_states = torch.cat(joint_states) if len(joint_states) > 1 else None
-        joint_actions = torch.cat(joint_actions) if len(joint_actions) > 1 else None
+        joint_states = torch.cat(joint_states) if joint_states[0] is not None else joint_states
+        joint_actions = torch.cat(joint_actions) if joint_actions[0] is not None else joint_actions
 
         advantage = returns - values
 
@@ -239,6 +239,7 @@ class PPOAgent(Agent):
         self.process_trajectory()
         if len(self.current_trajectory_memory) >= self.batch_size * self.min_batches_for_training:
             for _ in range(self.num_learning_updates):
+                print('learning')
                 for sampled_states, sampled_actions, sampled_log_probs, sampled_returns, sampled_advantages, _, _ in self.current_trajectory_memory.sample(self.batch_size):
                     self._learn(sampled_log_probs,  sampled_states, sampled_actions, sampled_advantages, sampled_returns)
             self.current_trajectory_memory.reset()

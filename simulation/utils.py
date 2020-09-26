@@ -25,6 +25,20 @@ def default_step_episode_agents_fn(brain_set: BrainSet, episode_number: int):
             agent.step_episode(episode_number)
 
 
+def single_agent_step_agents_fn(brain_set: BrainSet, next_brain_environment: dict, t: int):
+    for brain_name, brain_environment in next_brain_environment.items():
+        agent = brain_set[brain_name].agents[0]
+        brain_agent_experience = Experience(
+            state=brain_environment['states'],
+            action=brain_environment['actions'][0],
+            reward=brain_environment['rewards'],
+            next_state=brain_environment['next_states'],
+            done=torch.LongTensor(brain_environment['dones']),
+            t_step=t,
+        )
+        agent.step(brain_agent_experience)
+
+
 def default_preprocess_brain_actions_for_env_fn(brain_actions: Dict[str, List[Action]]) -> Dict[str, List[Action]]:
 
     assert len(brain_actions) > 0 and isinstance(list(brain_actions.values())[0][0], Action), brain_actions

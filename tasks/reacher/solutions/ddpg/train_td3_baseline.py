@@ -12,7 +12,7 @@ from agents.models.components.critics import Critic
 from tools.lr_schedulers import DummyLRScheduler
 from tools.parameter_scheduler import ParameterScheduler
 import pickle
-from tools.rl_constants import BrainSet, Brain
+from tools.rl_constants import BrainSet, Brain, Experience, Action
 from tools.rl_constants import RandomBrainAction
 from tools.parameter_scheduler import LinearDecaySchedule
 from tools.layer_initializations import init_layer_within_range, init_layer_inverse_root_fan_in
@@ -48,6 +48,7 @@ CRITIC_CHECKPOINT_PATH = os.path.join(SOLUTIONS_CHECKPOINT_DIR, f'{SAVE_TAG}_cri
 TRAINING_SCORES_PLOT_SAVE_PATH = os.path.join(SOLUTIONS_CHECKPOINT_DIR, f'{SAVE_TAG}_training_scores.png')
 TRAINING_SCORES_SAVE_PATH = os.path.join(SOLUTIONS_CHECKPOINT_DIR, f'{SAVE_TAG}_training_scores.pkl')
 
+
 def get_agent(memory_):
     return DDPGAgent(
         state_shape=STATE_SIZE,
@@ -67,7 +68,6 @@ def get_agent(memory_):
                     layer_sizes=(STATE_SIZE, 256),
                     dropout=DROPOUT,
                     with_batchnorm=BATCHNORM,
-                    activation_function=torch.nn.LeakyReLU(),
                     output_function=torch.nn.LeakyReLU(),
                 ),
                 output_module=MLP(
@@ -91,7 +91,7 @@ def get_agent(memory_):
             seed=SEED,
             random_brain_action_factory=lambda: RandomBrainAction(
                 ACTION_SIZE,
-                1,
+                NUM_AGENTS,
                 continuous_actions=True,
                 continuous_action_range=(-1, 1),
             )
@@ -106,9 +106,7 @@ def get_agent(memory_):
     )
 
 
-if __name__ == "__main__":
-    simulator = get_simulator()
-
+def get_solution_brain_set():
     memory = PrioritizedMemory(
         capacity=REPLAY_BUFFER_SIZE,
         state_shape=(1, STATE_SIZE),
@@ -127,13 +125,38 @@ if __name__ == "__main__":
         action_size=ACTION_SIZE,
         state_shape=STATE_SIZE,
         observation_type='vector',
-        agents=[get_agent(memory) for _ in range(NUM_AGENTS)],
+        agents=[get_agent(memory)],
     )
 
     brain_set = BrainSet(brains=[reacher_brain])
+    return brain_set
 
-    simulator.warmup(brain_set, n_episodes=int(WARMUP_STEPS / MAX_T), max_t=MAX_T)
-    agents, training_scores, i_episode, training_time = simulator.train(brain_set, n_episodes=NUM_EPISODES, max_t=MAX_T, solved_score=SOLVE_SCORE)
+
+def step_agents_fn(brain_set: BrainSet, next_brain_environment: dict, t: int):
+    for brain_name, brain_environment in next_brain_environment.items():
+        agent = brain_set[brain_name].agents[0]
+        for i in range(NUM_AGENTS):
+            action = brain_environment['actions'][0].value[i]
+            action = action[np.newaxis, ...]
+
+            brain_agent_experience = Experience(
+                state=brain_environment['states'][i].unsqueeze(0),
+                action=Action(value=action),
+                reward=brain_environment['rewards'][i],
+                next_state=brain_environment['next_states'][i].unsqueeze(0),
+                done=brain_environment['dones'][i],
+                t_step=t,
+            )
+            agent.step(brain_agent_experience)
+
+
+if __name__ == "__main__":
+    simulator = get_simulator()
+
+    brain_set = get_solution_brain_set()
+    simulator.warmup(brain_set, int(WARMUP_STEPS / MAX_T), max_t=MAX_T, step_agents_fn=step_agents_fn)
+
+    agents, training_scores, i_episode, training_time = simulator.train(brain_set, n_episodes=NUM_EPISODES, max_t=MAX_T, solved_score=SOLVE_SCORE, step_agents_fn=step_agents_fn)
 
     if training_scores.get_mean_sliding_scores() > SOLVE_SCORE:
         brain = brain_set[BRAIN_NAME]

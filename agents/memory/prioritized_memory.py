@@ -1,13 +1,12 @@
 import numpy as np
-from collections import namedtuple, deque
+from collections import deque
 import torch
-from typing import Type, NamedTuple, Union, Optional, Callable, Dict
+from typing import Union, Optional, Dict
 from tools.data_structures.sumtree import SumTree
 from tools.rl_constants import Experience, ExperienceBatch
-from tools.parameter_decay import ParameterScheduler
+from tools.parameter_scheduler import ParameterScheduler
 from tools.misc import set_seed
 from itertools import islice
-from torch.autograd import Variable
 from typing import List
 import random
 from collections import Counter
@@ -101,13 +100,14 @@ class PrioritizedMemory:
         curr_write_idx, and the priority is stored in the sumtree. After the experience is added, the
         current write index is incremented, along with the number of available_samples.
         """
-        current_experience = experience.cpu()
-        self.buffer[self.curr_write_idx] = current_experience
-        self.update(self.curr_write_idx, priority)
+        if experience is not None:
+            current_experience = experience.cpu()
+            self.buffer[self.curr_write_idx] = current_experience
+            self.update(self.curr_write_idx, priority)
 
-        self.curr_write_idx = (self.curr_write_idx + 1) % self.capacity
-        # max out available samples at the memory buffer size
-        self.available_samples = min(self.available_samples + 1, self.capacity - 1)
+            self.curr_write_idx = (self.curr_write_idx + 1) % self.capacity
+            # max out available samples at the memory buffer size
+            self.available_samples = min(self.available_samples + 1, self.capacity - 1)
 
     def update(self, indices: Union[int, torch.LongTensor], priorities: Union[float, torch.FloatTensor]):
         """Update the priority value of a node
@@ -149,27 +149,39 @@ class PrioritizedMemory:
         is_weights = np.array(is_weights)
         is_weights = np.power(is_weights, - self.beta)
         # now load up the state and next state variables according to sampled idxs
-        states, next_states, actions, rewards, terminal = [], [], [], [], []
+        states, next_states, actions, rewards, terminal, joint_states, joint_next_states,\
+        joint_actions = [], [], [], [], [], [], [], []
 
         for idx in sampled_idxs:
             experience: Experience = self.buffer[idx]
             states.append(experience.state)
             next_states.append(experience.next_state)
 
-            actions.append(experience.action)
+            actions.append(torch.from_numpy(experience.action.value))
             rewards.append(experience.reward)
             terminal.append(experience.done)
 
+            if experience.joint_state is not None:
+                joint_states.append(experience.joint_state)
+            if experience.joint_action is not None:
+                joint_actions.append(experience.joint_action)
+            if experience.joint_next_state is not None:
+                joint_next_states.append(experience.joint_next_state)
+
         f = torch.FloatTensor if self.continuous_actions else torch.LongTensor
         experience_batch = ExperienceBatch(
-            states=torch.stack(states).float(),
-            actions=f(torch.stack(actions)).view(num_samples, -1),
+            states=torch.cat(states).float(),
+            actions=f(torch.cat(actions)).view(num_samples, -1),
             rewards=torch.FloatTensor(rewards).view(num_samples, 1),
-            next_states=torch.stack(next_states).float(),
+            next_states=torch.cat(next_states).float(),
             dones=torch.LongTensor(terminal).view(num_samples, 1),
             sample_idxs=torch.LongTensor(sampled_idxs).view(num_samples, 1),
             is_weights=torch.from_numpy(is_weights).view(num_samples, 1).float(),
+            joint_states=None if len(joint_states) == 0 else torch.cat(joint_states).float(),
+            joint_actions=None if len(joint_actions) == 0 else f(torch.cat(joint_actions)),
+            joint_next_states=None if len(joint_next_states) == 0 else torch.cat(joint_next_states).float(),
         )
+
         experience_batch.to(device)
         return experience_batch
 
@@ -234,36 +246,52 @@ class ExtendedPrioritizedMemory(PrioritizedMemory):
         is_weights = np.array(is_weights)
         is_weights = np.power(is_weights, - self.beta)
         # now load up the state and next state variables according to sampled idxs
-        states, next_states = [], []
-
-        actions, rewards, terminal = [], [], []
+        states, next_states, actions, rewards, terminal, joint_states, joint_actions, \
+            joint_next_states = [], [], [], [], [], [], [], []
 
         for idx in sampled_idxs:
             state_frames = torch.cat(
                 [e.state for e in self.buffer[idx - self.num_stacked_frames + 1: idx + 1]]
             )
+
             next_state_frames = torch.cat(
                 [e.state for e in self.buffer[idx - self.num_stacked_frames + 2: idx + 2]]
             )
+
+            if self.num_stacked_frames > 1:
+                state_frames = state_frames.unsqueeze(0)
+                next_state_frames = next_state_frames.unsqueeze(0)
 
             states.append(state_frames)
             next_states.append(next_state_frames)
 
             experience_frame: Experience = self.buffer[idx]
-            actions.append(experience_frame.action)
+
+            actions.append(torch.from_numpy(experience_frame.action.value))
             rewards.append(experience_frame.reward)
             terminal.append(experience_frame.done)
 
+            if experience_frame.joint_state is not None:
+                joint_states.append(experience_frame.joint_state)
+            if experience_frame.joint_action is not None:
+                joint_actions.append(experience_frame.joint_action)
+            if experience_frame.joint_next_state is not None:
+                joint_next_states.append(experience_frame.joint_next_state)
+
         f = torch.FloatTensor if self.continuous_actions else torch.LongTensor
         experience_batch = ExperienceBatch(
-            states=torch.stack(states).float(),
-            actions=f(torch.stack(actions)).view(num_samples, -1),
+            states=torch.cat(states).float(),
+            actions=f(torch.cat(actions)).view(num_samples, -1),
             rewards=torch.FloatTensor(rewards).view(num_samples, 1),
-            next_states=torch.stack(next_states).float(),
+            next_states=torch.cat(next_states).float(),
             dones=torch.LongTensor(terminal).view(num_samples, 1),
             sample_idxs=torch.LongTensor(sampled_idxs).view(num_samples, 1),
             is_weights=torch.from_numpy(is_weights).view(num_samples, 1).float(),
+            joint_states=None if len(joint_states) == 0 else torch.cat(joint_states).float(),
+            joint_actions=None if len(joint_actions) == 0 else f(torch.cat(joint_actions)),
+            joint_next_states=None if len(joint_next_states) == 0 else torch.cat(joint_next_states).float(),
         )
+
         experience_batch.to(device)
         return experience_batch
 
@@ -275,7 +303,7 @@ class MemoryStreams:
         if seed:
             set_seed(seed)
         for s in stream_ids:
-            self.streams[s] = PrioritizedMemory(
+            self.streams[s] = ExtendedPrioritizedMemory(
                 capacity,
                 state_shape,
                 beta_scheduler,
@@ -287,16 +315,6 @@ class MemoryStreams:
             )
 
     def sample(self, num_samples: int) -> ExperienceBatch:
-        # keys, values = [], []
-        # for k, memory_stream in self.streams.items():
-        #     keys.append(k)
-        #     values.append(memory_stream.sum_tree.root_node.value)
-        #
-        # values = np.array(values)
-        # probs = values / np.sum(values)
-        #
-        # sampled_streams_ = [np.random.choice(keys, p=probs) for _ in range(num_samples)]
-
         sampled_streams_ = random.choices(list(self.streams.keys()), k=num_samples)
         streams_to_num_samples = Counter(sampled_streams_)
         sampled_streams, states, actions, rewards, next_states, terminal, sampled_idxs, is_weights = [], [], [], [], [], [], [], []
@@ -314,13 +332,13 @@ class MemoryStreams:
             sampled_streams.extend([sampled_stream] * n_stream_samples)
 
         experience_batch = ExperienceBatch(
-            states=torch.stack(states).float(),
-            actions=torch.stack(actions).float(),
-            rewards=torch.stack(rewards),
-            next_states=torch.stack(next_states),
-            dones=torch.stack(terminal),
-            sample_idxs=torch.stack(sampled_idxs),
-            is_weights=torch.stack(is_weights),
+            states=torch.cat(states).float(),
+            actions=torch.cat(actions).float(),
+            rewards=torch.cat(rewards),
+            next_states=torch.cat(next_states),
+            dones=torch.cat(terminal),
+            sample_idxs=torch.cat(sampled_idxs),
+            is_weights=torch.cat(is_weights),
             memory_streams=sampled_streams
         )
 

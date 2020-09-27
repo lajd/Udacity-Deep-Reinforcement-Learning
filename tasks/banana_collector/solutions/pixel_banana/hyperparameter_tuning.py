@@ -1,3 +1,4 @@
+import sys
 from agents.models.dqn import VisualDQN
 from agents.models.components.cnn import CNN
 import torch
@@ -6,8 +7,10 @@ from ax import optimize
 import os
 import pickle
 import ast
+from tools.rl_constants import Experience, Brain, BrainSet
 
-from tasks.banana_collector.solutions.utils import default_cfg, get_policy, get_memory, get_agent, VISUAL_STATE_SHAPE, ACTION_SIZE, get_simulator, IMAGE_SHAPE
+from tasks.banana_collector.solutions.utils import default_cfg, get_policy, get_memory, get_agent, VISUAL_STATE_SHAPE,\
+    ACTION_SIZE, get_simulator, IMAGE_SHAPE, BRAIN_NAME, get_preprocess_state_fn
 
 SEED = default_cfg['SEED']
 TUNINGS_DIR = os.path.abspath('visual_tunings')
@@ -70,8 +73,19 @@ def visual_banana_tuning(update_params: dict):
         agent = get_agent(VISUAL_STATE_SHAPE, ACTION_SIZE, model, policy, memory, optimizer, params)
 
         # Run performance evaluation
-        performance, info = simulator.get_agent_performance(
+        banana_brain = Brain(
+            brain_name=BRAIN_NAME,
+            action_size=ACTION_SIZE,
+            state_shape=VISUAL_STATE_SHAPE,
+            observation_type='visual',
             agents=[agent],
+            preprocess_state_fn=get_preprocess_state_fn(params)
+        )
+
+        brain_set = BrainSet(brains=[banana_brain])
+
+        performance, info = simulator.get_agent_performance(
+            brain_set=brain_set,
             n_train_episodes=params["N_EPISODES"],
             n_eval_episodes=params["N_EVAL_EPISODES"],
             max_t=params["MAX_T"],
@@ -87,7 +101,7 @@ def visual_banana_tuning(update_params: dict):
         return performance
     except Exception as e:
         # Failures can occur do to invalid CNN sizes
-        print(e)
+        print("FAILURE IN HYPERPARAMETER TUNING::: {}, {}".format(e, sys.exc_info()))
         return 0
 
 

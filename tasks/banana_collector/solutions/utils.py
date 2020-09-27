@@ -4,11 +4,15 @@ from agents.dqn_agent import DQNAgent
 from agents.policies.categorical_policy import CategoricalDQNPolicy
 from agents.policies.max_policy import MaxPolicy
 from agents.memory.prioritized_memory import ExtendedPrioritizedMemory
-from tools.parameter_decay import ParameterScheduler
+from tools.parameter_scheduler import ParameterScheduler
 from unityagents import UnityEnvironment
 from simulation.unity_environment import UnityEnvironmentSimulator
 from os.path import join, dirname
 from tools.lr_schedulers import DummyLRScheduler
+from tools.image_utils import RGBImage
+from typing import Callable
+from tools.rl_constants import BrainSet, Experience
+import numpy as np
 
 
 ENVIRONMENTS_DIR = join(dirname(dirname(__file__)), 'environments')
@@ -16,6 +20,7 @@ IMAGE_SHAPE = (84, 84, 3)
 VISUAL_STATE_SHAPE = (1, 84, 84, 3)
 VECTOR_STATE_SHAPE = (1, 37)
 ACTION_SIZE = 4
+BRAIN_NAME = 'BananaBrain'
 
 default_cfg = {
     ###############
@@ -85,7 +90,6 @@ def get_simulator(visual: bool = False):
     simulator = UnityEnvironmentSimulator(
         task_name='{}_banana_collector'.format(observation_type),
         env=env, seed=default_cfg["SEED"],
-        observation_type=observation_type
     )
     return simulator
 
@@ -115,6 +119,7 @@ def get_policy(action_size: int, params):
 
 
 def get_memory(state_shape: tuple, params):
+    # memory = Memory(buffer_size=int(1e6), seed=6)
     memory = ExtendedPrioritizedMemory(
         capacity=params['MEMORY_CAPACITY'],
         state_shape=state_shape,
@@ -144,3 +149,47 @@ def get_agent(state_shape: tuple, action_size: int, model: torch.nn.Module, poli
         action_repeats=params['ACTION_REPEATS'],
     )
     return agent
+
+
+def get_preprocess_state_fn(params) -> Callable:
+    def preprocess_state_fn(state: torch.Tensor):
+        # Environment gives extra dimension
+        # print("Original state shape in preprocess_state_fn is: {}".format(state.shape))
+        state = state.squeeze(0)
+
+        assert state.shape == torch.Size((1, 84, 84, 3)), state.shape
+        if params["GRAYSCALE"]:
+            # bsize x num_stacked_frames x r x g x b
+            image = RGBImage(state)
+            # Remove the last dimension by converting to grayscale
+            gray_image = image.to_gray()
+            normalized_image = gray_image / 255
+            preprocessed_state = normalized_image
+        else:
+            state /= 255
+            preprocessed_state = state
+
+        return preprocessed_state
+
+    return preprocess_state_fn
+
+
+def visual_agent_step_agents_fn(brain_set: BrainSet, next_brain_environment: dict, t: int):
+    for brain_name, brain_environment in next_brain_environment.items():
+        agent = brain_set[brain_name].agents[0]
+        state = brain_environment['states']
+        # state = state[np.newaxis, ...]
+
+        # print("State shape is::: {}".format(state.shape))
+        # print("Action in step agents fn is: {}".format(brain_environment['actions']))
+        # print("next_states in step agents fn is: {}".format(brain_environment['next_states'].shape))
+
+        brain_agent_experience = Experience(
+            state=state,
+            action=brain_environment['actions'][0],
+            reward=brain_environment['rewards'],
+            next_state=brain_environment['next_states'],
+            done=torch.LongTensor(brain_environment['dones']),
+            t_step=t,
+        )
+        agent.step(brain_agent_experience)

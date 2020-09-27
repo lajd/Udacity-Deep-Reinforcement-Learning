@@ -1,7 +1,11 @@
 import sys
-import torch
 import numpy
 import random
+from typing import Union
+import torch
+from torch import Tensor
+
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 def set_seed(seed: int):
@@ -31,6 +35,15 @@ def get_object_size(obj, seen=None):
     return size
 
 
+def concatenate_tensors(tensors_list: Union[torch.Tensor, Tensor], cat_dim=0):
+    if isinstance(tensors_list, list):
+        return torch.cat(tensors_list, dim=cat_dim)
+    elif isinstance(tensors_list, Tensor):
+        return tensors_list
+    else:
+        raise ValueError('Unexpected type for tensors_list: {}'.format(tensors_list))
+
+
 def soft_update(online_model, target_model, tau) -> None:
     """Soft update model parameters from local to target network.
 
@@ -43,3 +56,12 @@ def soft_update(online_model, target_model, tau) -> None:
     """
     for target_param, local_param in zip(target_model.parameters(), online_model.parameters()):
         target_param.data.copy_(tau * local_param.data + (1.0 - tau) * target_param.data)
+
+
+def ensure_batch(*tensor_args):
+    outp = []
+    for t in tensor_args:
+        if t.ndim == 1:
+            t = t.unsqueeze(0).to(device)
+        outp.append(t)
+    return outp

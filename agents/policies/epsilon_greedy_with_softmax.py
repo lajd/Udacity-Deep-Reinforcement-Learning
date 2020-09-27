@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from tools.parameter_decay import ParameterScheduler
+from tools.parameter_scheduler import ParameterScheduler
 from agents.policies.base_policy import Policy
 import random
 from tools.rl_constants import Action
@@ -33,20 +33,18 @@ class EpsilonGreedySoftmaxPolicy(Policy):
             model.train()
             return action_values
 
-        if self.train:
+        if self.training:
             action_values_ = _get_action_values()
             if random.random() > self.epsilon:
-                action = Action(value=int(action_values_.max(1)[1].data[0]), distribution=None)
-                return action
+                action = action_values_.max(1)[1].data[0]
             else:
                 probs = torch.nn.functional.softmax(action_values_)
-                value = int(np.random.choice(np.arange(0, self.action_size), p=probs.view(-1).numpy()))
-                action = Action(value=value, distribution=probs.data.cpu().numpy())
-                return action
+                action = np.random.choice(np.arange(0, self.action_size), p=probs.view(-1).numpy())
         else:
             action_values_ = _get_action_values()
-            action = Action(value=int(action_values_.max(1)[1].data[0]), distribution=None)
-            return action
+            action = action_values_.max(1)[1].data[0]
+
+        return Action(value=action)
 
     def get_deterministic_policy(self, state_action_values_dict: dict):
         deterministic_policy = {}

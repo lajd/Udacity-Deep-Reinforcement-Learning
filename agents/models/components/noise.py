@@ -2,8 +2,9 @@ import numpy as np
 import random
 from copy import copy
 from typing import Tuple, Optional
-from abc import abstractmethod
 import torch
+
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 class Noise:
@@ -14,9 +15,6 @@ class Noise:
         pass
 
     def sample(self, *args):
-        raise NotImplementedError
-
-    def sample_like(self, *args):
         raise NotImplementedError
 
 
@@ -63,3 +61,26 @@ class GaussianNoise(Noise):
         if output_as_numpy:
             noise = noise.numpy()
         return noise
+
+
+class RandomProcess(object):
+    def reset_states(self):
+        pass
+
+
+class GaussianProcess(Noise, RandomProcess):
+    def __init__(self, std_fn, clip: Optional[Tuple[float, float]] = (-0.5, 0.5), seed=None):
+        super().__init__()
+        if seed:
+            np.random.seed(seed)
+        self.std_fn = std_fn
+        self.clip = clip
+
+    def sample(self, x: torch.Tensor):
+        if isinstance(x, np.ndarray):
+            x = torch.from_numpy(x)
+        x = torch.randn_like(x) * self.std_fn()
+        if self.clip:
+            x = x.clamp(self.clip[0], self.clip[1])
+        x = x.cpu().numpy()
+        return x

@@ -1,237 +1,342 @@
-from collections import Counter
-
-from unityagents import UnityEnvironment
-import numpy as np
-from agents.base import Agent
-from typing import Tuple, Optional, Union, List, Callable
 import time
+from collections import OrderedDict
+from typing import Tuple, Optional, List, Callable, Dict
+from copy import deepcopy
+import warnings
+
 import torch
-import random
+import numpy as np
 import matplotlib.pyplot as plt
-from unityagents.brain import BrainInfo
-from tools.rl_constants import Experience, Environment
-from tools.rl_constants import Action
+from unityagents import UnityEnvironment
+
+from tools.rl_constants import BrainSet, Action
 from tools.scores import Scores
+from simulation.utils import default_preprocess_brain_actions_for_env_fn, default_step_agents_fn, default_step_episode_agents_fn
+from tools.misc import set_seed
+
 plt.style.use('ggplot')
 np.set_printoptions(precision=3, linewidth=120)
-import warnings
 warnings.filterwarnings("ignore")
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 class UnityEnvironmentSimulator:
     """ Helper class for training an agent in a Unity ML-Agents environment """
-    def __init__(self, task_name: str, env: UnityEnvironment, observation_type: str, seed: int):
-        torch.manual_seed(seed)
-        random.seed(seed)
+    def __init__(self, task_name: str, env: UnityEnvironment, seed: int):
+        set_seed(seed)
         self.env = env
         self.task_name = task_name
 
-        # Use the default brain
-        self.brain_name = self.env.brain_names[0]
-        self.brain = self.env.brains[self.brain_name]
-
+        self.env_info = None
         self.training_scores = None
+        self.evaluation_scores = None
 
-        # Get discrete state/action sizes
-        self.observation_type = observation_type
-        if observation_type == 'vector':
-            self.state_shape = self.brain.vector_observation_space_size
-            if isinstance(self.state_shape, int):
-                self.state_shape = (1, self.state_shape)
-            self.action_size = self.brain.vector_action_space_size
-        elif observation_type == 'visual':
-            brain_info = self.env.reset()[self.brain_name]
-            self.state_shape = brain_info.visual_observations[0].shape
-            self.action_size = self.brain.vector_action_space_size
+    def reset_env(self, train_mode: bool) -> None:
+        """ Reset the environment
+        :param train_mode: Whether to reset in training mode
+        :return: None
+        """
+        env_info = self.env.reset(train_mode=train_mode)
+        self.env_info = env_info
+
+    def get_next_states(self, brain_set: BrainSet) -> Dict[str, torch.Tensor]:
+        """ Get the next brain states from the environment
+        :param brain_set: The agent brains
+        :return: Mapping from brain_name to a torch tensor of brain states
+        """
+        brain_states = {}
+        for brain_name, brain in brain_set:
+            brain_info = self.env_info[brain_name]
+            if brain.observation_type == 'vector':
+                states = np.array(brain_info.vector_observations)
+            elif brain.observation_type == 'visual':
+                states = np.array(brain_info.visual_observations)
+            else:
+                raise ValueError("Invalid observation_type {}".format(brain.observation_type))
+
+            states = brain.preprocess_state_fn(states)
+            states = torch.from_numpy(states).to(device).float()
+            brain_states[brain_name] = states
+        return brain_states
+
+    def step(
+            self,
+            brain_set: BrainSet,
+            brain_states: Dict[str, np.ndarray],
+            random_actions: bool = False,
+            preprocess_brain_actions_for_env_fn: Callable = default_preprocess_brain_actions_for_env_fn
+    ) -> Dict[str, dict]:
+        """ Step the simulation, getting the next environment frame
+        :param brain_set: The agent brains
+        :param brain_states: Mapping from brain_name to a numpy ndarray of states
+        :param random_actions: Whether to obtain random or learned actions
+        :param preprocess_brain_actions_for_env_fn: Function for preprocessing brain actions prior to
+            passing to the environment
+        :return: Mapping from brain_name to the the next environment frame, which includes:
+            - states
+            - actions
+            - next_states
+            - rewards
+            - dones
+        """
+        if random_actions:
+            brain_actions: Dict[str, List[Action]] = brain_set.get_random_actions(brain_states)
         else:
-            raise ValueError("Invalid observation_type {}".format(observation_type))
+            brain_actions: Dict[str, List[Action]] = brain_set.get_actions(brain_states)
 
-    def _get_state(self, brain_info: BrainInfo):
-        if self.observation_type == 'vector':
-            states = np.array(brain_info.vector_observations)
-        elif self.observation_type == 'visual':
-            states = np.array(brain_info.visual_observations)
-        else:
-            raise ValueError("Invalid observation_type {}".format(self.observation_type))
-        return states
+        actions: Dict[str, np.ndarray] = preprocess_brain_actions_for_env_fn(deepcopy(brain_actions))
 
-    def reset(self, preprocess_state_fn: Callable, train_mode: bool = True) -> torch.Tensor:
-        """Reset the environment in training/evaluation mode
+        self.env_info = self.env.step(actions)
 
-        Args:
-            train_mode (str): Reset the environment in train mode
-        Returns:
-            state (np.array): The initial environment state
+        next_brain_states = self.get_next_states(brain_set)
+
+        output = {}
+        for brain_name in brain_set.names():
+            output[brain_name] = {
+                'states': brain_states[brain_name],
+                'actions': brain_actions[brain_name],
+                'next_states': next_brain_states[brain_name],
+                'rewards': self.env_info[brain_name].rewards,
+                'dones': self.env_info[brain_name].local_done
+            }
+        return output
+
+    def train(
+            self,
+            brain_set: BrainSet,
+            solved_score: Optional[float] = None,
+            n_episodes=2000, max_t=1000, sliding_window_size: int = 100,
+            step_agents_fn: Callable = default_step_agents_fn,
+            step_episode_agents_fn: Callable = default_step_episode_agents_fn,
+            brain_reward_accumulation_fn: Callable = lambda rewards: np.array(rewards),
+            episode_reward_accumulation_fn: Callable = lambda brain_episode_scores: float(np.mean([np.mean(brain_episode_scores[brain_name]) for brain_name in brain_episode_scores])),
+            preprocess_brain_actions_for_env_fn: Callable = default_preprocess_brain_actions_for_env_fn,
+            end_episode_criteria: Callable = np.all,
+            end_of_episode_score_display_fn: Callable = lambda i_episode, episode_aggregated_score, training_scores: '\rEpisode {}\tScore: {:.2f}\tAverage Score: {:.2f}'.format(i_episode, episode_aggregated_score, training_scores.get_mean_sliding_scores()),
+            aggregate_end_of_episode_score_fn: Callable = lambda training_scores: training_scores.get_mean_sliding_scores()
+            ) -> Tuple[BrainSet, Scores, int, float]:
         """
-        brain_info = self.env.reset(train_mode=train_mode)[self.brain_name]
-        states = self._get_state(brain_info)
-        states = np.array([preprocess_state_fn(i) for i in states])
-        return torch.from_numpy(states).float().to(device)
-
-    def step(self, preprocess_state_fn: Callable, actions: List[Action]) -> Union[Environment, List[Environment]]:
-        """Push an action to the environment, receiving the next environment frame
-
-        Args:
-            preprocess_state_fn (Callable): Function to perform preprocessing on a state
-            actions (Agent or List[Agent]): Agent(s) interacting with the environment
-
-        Returns:
-            environment (Environment): The next frame of the environment
+        Train a set of agents (brain-set) in an environment
+        :param brain_set: The agent brains to undergo training
+        :param solved_score: The score (averaged over sliding_window_size episodes) required to consider the task solved
+        :param n_episodes: The number of episodes to train over
+        :param max_t: The maximum number of time steps allowed in each episode
+        :param sliding_window_size: Size of the sliding window to average episode scores over
+        :param step_agents_fn: Function used to update the agents with a new experience sampled from the environment
+        :param step_episode_agents_fn: Function used to step the agents at the end of each episode
+        :param preprocess_brain_actions_for_env_fn: Function used to preprocess actions from the agents before
+         passing to the environment
+        :param brain_reward_accumulation_fn:Function used to accumulate rewards for each brain
+        :param episode_reward_accumulation_fn: Function used to aggregate rewards across brains
+        :param end_of_episode_score_display_fn: Function used to print out end-of-episode scalar score
+        :param end_episode_criteria: Function acting on a list of booleans
+            (identifying whether that agent's episode has terminated) to determine whether the episode is finished
+        :param aggregate_end_of_episode_score_fn: Function used to aggregate the end-of-episode score function.
+            Defaults to averaging over the past sliding_window_size episode scores
+        :return: Tuple of  (brain_set, Scores, i_episode, average_score)
+            brain_set (BrainSet): The trained BrainSet
+            Scores (Scores): Scores object containing all historic and sliding-window scores
+            i_episode (int): The number of episodes required to solve the task
+            average_score (float): The final averaged score
         """
-        actions = np.vstack([a.value for a in actions])
-        brain_info = self.env.step(actions)[self.brain_name]
-        next_states = self._get_state(brain_info)
-        next_states = np.array([preprocess_state_fn(i) for i in next_states])
-        rewards = brain_info.rewards
-        dones = brain_info.local_done
-        return next_states, rewards, dones
 
-    def train(self, agents: Union[Agent, List[Agent]], solved_score: Optional[float] = None,
-              n_episodes=2000, max_t=1000, sliding_window_size: int = 100
-              ) -> Tuple[List[Agent], Scores, int, float]:
-        """Train the agent in the environment
+        for brain in brain_set.brains():
+            for agent in brain.agents:
+                agent.set_mode('train')
+                agent.set_warmup(False)
 
-        Args:
-            agents (List[Agent]): The agent(s) to undergo training
-            solved_score (float): The score required to be obtained (calculated as the mean
-                of the sliding window scores) in order to mark the task as solved
-            n_episodes (int): The number of episodes to train over
-            max_t (int): The maximum number of timesteps allowed in each episode
-            sliding_window_size (int): The number of historical scores to average over
-
-        Returns:
-            agent (Agent): The trained agent
-            scores (Scores): Scores object containing all historic and sliding-window scores
-        """
-        for agent in agents:
-            agent.set_mode('train')
         self.training_scores = Scores(window_size=sliding_window_size)
 
-        if not isinstance(agents, list):
-            agents = [agents]
-
         t_start = time.time()
-        preprocess_function = agents[0].preprocess_state
         for i_episode in range(1, n_episodes + 1):
-            states = self.reset(preprocess_state_fn=preprocess_function, train_mode=True)
-            episode_scores = np.zeros(len(agents))
+            self.reset_env(train_mode=True)
+            brain_states = self.get_next_states(brain_set)
+
+            brain_episode_scores = OrderedDict([(brain_name, None) for brain_name, brain in brain_set])
+
             for t in range(max_t):
-                actions_list = [agent.get_action(state) for agent, state in zip(agents, states)]
-                next_states, rewards, dones = self.step(preprocess_state_fn=preprocess_function, actions=actions_list)
-                for i in range(len(agents)):
-                    e = Experience(
-                        state=states[i], action=actions_list[i].value, reward=rewards[i],
-                        next_state=next_states[i], done=dones[i], t_step=t
-                    )
-                    agents[i].step(e)
-                next_states = torch.from_numpy(next_states).float().to(device)
-                states = next_states
-                episode_scores += rewards
-                if t % 20:
-                    print('\rTimestep {}\tScore: {:.2f}\tmin: {:.2f}\tmax: {:.2f}'
-                          .format(t, np.mean(episode_scores), np.min(episode_scores), np.max(episode_scores)), end="")
-                if np.any(dones):
+                next_brain_environment = self.step(brain_set=brain_set, brain_states=brain_states, preprocess_brain_actions_for_env_fn=preprocess_brain_actions_for_env_fn)
+                step_agents_fn(brain_set, next_brain_environment, t)
+
+                brain_states = {
+                    brain_name: next_brain_environment[brain_name]['next_states']
+                    for brain_name in brain_states
+                }
+
+                for brain_name in brain_episode_scores:
+                    # Brain rewards are a scalar for each agent,
+                    # of form next_brain_environment[brain_name]['rewards']=[0.0, 0.0]
+                    brain_rewards = brain_reward_accumulation_fn(next_brain_environment[brain_name]['rewards'])
+                    if brain_episode_scores[brain_name] is None:
+                        brain_episode_scores[brain_name] = brain_rewards
+                    else:
+                        brain_episode_scores[brain_name] += brain_rewards
+
+                all_dones = []
+                for brain_name in brain_set.names():
+                    all_dones.extend(next_brain_environment[brain_name]['dones'])
+
+                if end_episode_criteria(all_dones):
                     break
-            # Step the episode
-            for agent in agents:
-                agent.step_episode(i_episode)
 
-            episode_score = float(np.mean(episode_scores))
-            self.training_scores.add(episode_score)
+            # Step episode for agents
+            step_episode_agents_fn(brain_set, i_episode)
 
-            print('\rEpisode {}\tScore: {:.2f}\tAverage Score: {:.2f}'.format(i_episode, episode_score, self.training_scores.get_mean_sliding_scores()),
-                  end="\n")
-            if solved_score and self.training_scores.get_mean_sliding_scores() >= solved_score:
+            # Brain episode scores are of form: {'<brain_name>', <output_of_brain_reward_accumulation_fn>]}
+            episode_aggregated_score = episode_reward_accumulation_fn(brain_episode_scores)
+            self.training_scores.add(episode_aggregated_score)
+
+            if i_episode % 100 == 0:
+                end = '\n'
+            else:
+                end = ""
+
+            print(end_of_episode_score_display_fn(i_episode, episode_aggregated_score, self.training_scores), end=end)
+            if solved_score and aggregate_end_of_episode_score_fn(self.training_scores) >= solved_score:
                 print("\nTotal Training time = {:.1f} min".format((time.time() - t_start) / 60))
                 print('\nEnvironment solved in {:d} episodes!\tAverage Score: {:.2f}'.format(i_episode, self.training_scores.get_mean_sliding_scores()))
                 break
         training_time = round(time.time() - t_start)
 
-        return agents, self.training_scores, i_episode, training_time
+        return brain_set, self.training_scores, i_episode, training_time
 
-    def warmup(self, agents: List[Agent], n_episodes: int, max_t: int):
+    def warmup(
+            self,
+            brain_set: BrainSet,
+            n_episodes: int,
+            max_t: int,
+            step_agents_fn: Callable = default_step_agents_fn,
+            preprocess_brain_actions_for_env_fn: Callable = default_preprocess_brain_actions_for_env_fn,
+            end_episode_criteria=np.all,
+    ) -> None:
+        """
+        Act randomly in the environment, storing experience tuples in trajectory/memory buffers.
+        Used to initialize memory objects such as prioritized experience replay
+        :param brain_set: The agent brains to undergo training
+        :param n_episodes: The number of episodes to train over
+        :param step_agents_fn: Function used to update the agents with a new experience sampled from the environment
+        :param preprocess_brain_actions_for_env_fn: Function used to preprocess actions from the agents before
+         passing to the environment
+        :param max_t: The maximum number of time steps allowed in each episode
+        :param end_episode_criteria: Function acting on a list of booleans
+            (identifying whether that agent's episode has terminated) to determine whether the episode is finished
+        :return: None
+        """
         print("Performing warmup with {} episodes and max_t={}".format(n_episodes, max_t))
-        for agent in agents:
-            agent.set_mode('eval')
+        for brain in brain_set.brains():
+            for agent in brain.agents:
+                agent.set_mode('train')
+                agent.set_warmup(True)
+
         t1 = time.time()
         for i_episode in range(1, n_episodes + 1):
-            preprocess_state_fn = agents[0].preprocess_state
-            states = self.reset(preprocess_state_fn=preprocess_state_fn, train_mode=True)  # Train mode --> faster
+            self.reset_env(train_mode=True)
+            brain_states = self.get_next_states(brain_set)
             for t in range(max_t):
-                actions_list = [agent.get_random_action(state) for agent, state in zip(agents, states)]
-                next_states, _, dones = self.step(preprocess_state_fn=preprocess_state_fn, actions=actions_list)
-                states = torch.from_numpy(next_states).float().to(device)
-                if np.any(dones):
+                next_brain_environment = self.step(brain_set=brain_set, brain_states=brain_states, random_actions=True, preprocess_brain_actions_for_env_fn=preprocess_brain_actions_for_env_fn)
+                step_agents_fn(brain_set, next_brain_environment, t)
+                brain_states = {
+                    brain_name: next_brain_environment[brain_name]['next_states']
+                    for brain_name in brain_states
+                }
+
+                all_dones = []
+                for brain_name in brain_set.names():
+                    all_dones.extend(next_brain_environment[brain_name]['dones'])
+
+                if end_episode_criteria(all_dones):
                     break
+
                 print('\rEpisode {}\tTimestep: {:.2f}'.format(i_episode, t), end="")
         print("Finished warmup in {}s".format(round(time.time() - t1)))
 
-    def evaluate(self, agents: Union[Agent, List[Agent]], n_episodes=5, max_t=1000) -> Tuple[List[Agent], float]:
-        """ Evaluate a trained agent in an environment
-
-        Used particularly for visualizing a trained agent
-
-        Args:
-            agents (List[Agent]): The (trained) agent to evaluate
-            n_episodes (int): The number of episodes to train over
-            max_t (int): The maximum number of timesteps allowed in each episode
-
-        Returns:
-            agent (Agent): Same as input agent
-            scores (Scores): Scores object containing all historic and sliding-window scores
+    def evaluate(
+            self,
+            brain_set: BrainSet,
+            n_episodes: int = 5,
+            max_t: int = 1000,
+            brain_reward_accumulation_fn: Callable = lambda rewards: np.array(rewards),
+            episode_reward_accumulation_fn: Callable = lambda brain_episode_scores: float(
+                np.mean([np.mean(brain_episode_scores[brain_name]) for brain_name in brain_episode_scores])
+            ),
+            end_of_episode_score_display_fn: Callable = lambda i_episode, episode_aggregated_score,
+                                                                training_scores: '\rEpisode {}\tScore: {:.2f}\tAverage Score: {:.2f}'.format(
+                 i_episode, episode_aggregated_score, training_scores.get_mean_sliding_scores()),
+            sliding_window_size: int = 100,
+            end_episode_criteria: Callable = np.all
+    ) -> Tuple[BrainSet, float]:
         """
-        if not isinstance(agents, list):
-            agents = [agents]
-        t_start = time.time()
-        print('\n----------Starting evaluation----------------')
-        cumulative_score = 0
-        preprocess_state_fn = agents[0].preprocess_state
-        for i_episode in range(1, n_episodes + 1):
-            for agent in agents:
+        Evaluate the agent in the environment
+        :param brain_set: The agent brains to undergo training
+        :param n_episodes: The number of episodes to train over
+        :param max_t: The maximum number of time steps allowed in each episode
+        :param brain_reward_accumulation_fn:Function used to accumulate rewards for each brain
+        :param episode_reward_accumulation_fn: Function used to aggregate rewards across brains
+        :param end_of_episode_score_display_fn: Function used to print out end-of-episode scalar score
+        :param sliding_window_size: Size of the sliding window to average episode scores over
+        :param end_episode_criteria: Function acting on a list of booleans
+            (identifying whether that agent's episode has terminated) to determine whether the episode is finished
+        :return: Tuple of  (brain_set, average_score)
+        """
+        for brain in brain_set.brains():
+            for agent in brain.agents:
                 agent.set_mode('eval')
+                agent.set_warmup(False)
 
-            states = self.reset(preprocess_state_fn=preprocess_state_fn, train_mode=False)
-            episode_scores = np.zeros(len(agents))
+        self.evaluation_scores = Scores(window_size=sliding_window_size)
+
+        for i_episode in range(1, n_episodes + 1):
+            self.reset_env(train_mode=False)
+            brain_states = self.get_next_states(brain_set)
+
+            brain_episode_scores = {brain_name: None for brain_name, brain in brain_set}
+
             for t in range(max_t):
-                actions_list = [agent.get_action(state) for agent, state in zip(agents, states)]
-                next_states, rewards, dones = self.step(preprocess_state_fn=preprocess_state_fn, actions=actions_list)
-                next_states = torch.from_numpy(next_states).float().to(device)
-                states = next_states
-                episode_scores += rewards
-                if np.any(dones):
+                next_brain_environment = self.step(brain_set=brain_set, brain_states=brain_states)
+
+                brain_states = {
+                    brain_name: next_brain_environment[brain_name]['next_states']
+                    for brain_name in brain_states
+                }
+                for brain_name in brain_episode_scores:
+                    scores = brain_reward_accumulation_fn(next_brain_environment[brain_name]['rewards'])
+                    if brain_episode_scores[brain_name] is None:
+                        brain_episode_scores[brain_name] = scores
+                    else:
+                        brain_episode_scores[brain_name] += scores
+
+                all_dones = []
+                for brain_name in brain_set.names():
+                    all_dones.extend(next_brain_environment[brain_name]['dones'])
+
+                if end_episode_criteria(all_dones):
                     break
-                print("\rEpisode {}: Episode score: {}".format(i_episode, np.mean(episode_scores)), end="")
 
-            cumulative_score += np.mean(episode_scores)
-            for agent in agents:
-                agent.step_episode(i_episode)
+            episode_aggregated_score = episode_reward_accumulation_fn(brain_episode_scores)
+            self.evaluation_scores.add(episode_aggregated_score)
+            print(end_of_episode_score_display_fn(i_episode, episode_aggregated_score, self.evaluation_scores), end='\n')
+        average_score = self.evaluation_scores.get_mean_sliding_scores()
+        return brain_set, average_score
 
-        average_score = cumulative_score / i_episode
-        print('\n-----------Finished evaluation in {:.2f}s with average score {}-----------'.format(time.time() - t_start, average_score))
-        return agents, average_score
-
-    def get_agent_performance(self, agents: Union[Agent, List[Agent]], n_train_episodes: int = 100, with_eval: bool = False, n_eval_episodes=10, sliding_window_size: int = 100, max_t: int = 1000) -> tuple:
-        """
-        :param agent: Agent model
+    def get_agent_performance(self, brain_set: BrainSet, n_train_episodes: int = 100, n_eval_episodes=10, sliding_window_size: int = 100, max_t: int = 1000) -> tuple:
+        """ Get the performance of the agents (brain-set) in the environment
+        :param brain_set: BrainSet to get performance for
         :param n_train_episodes: Number of episodes to train agent over
-        :param with_eval:  Whether to obtain the performance metric by averaging agent performance in eval-mode over n_eval_episodes
         :param n_eval_episodes: Number of evaluation episodes to average over
-        :param sliding_window_size:
-        :param max_t:
-        :return:
+        :param sliding_window_size: Size of the sliding window to average scores over
+        :param max_t: Max number of time steps per episode
+        :return: Tuple of performance (Mean episode score) and training supplementary information
         """
-        if not isinstance(agents, list):
-            agents = [agents]
         t1 = time.time()
         # TODO: Allow for early stopping if performance is poor
-        agent, training_scores, i_episode, training_time = self.train(
-            agents=agents,
+        brain_set, training_scores, i_episode, training_time = self.train(
+            brain_set=brain_set,
             solved_score=None,
             n_episodes=n_train_episodes,
             max_t=max_t,
             sliding_window_size=sliding_window_size,
         )
+
         t2 = time.time()
 
         info = {
@@ -243,19 +348,8 @@ class UnityEnvironmentSimulator:
             "max_t": max_t,
         }
 
-        if with_eval:
-            eval_agent, average_score = self.evaluate(agents=agents, n_episodes=n_eval_episodes, max_t=max_t)
-            info.update({'average_eval_score': average_score})
-            # Performance is mean over all training episodes
-            performance = average_score
-        else:
-            performance = float(training_scores.get_mean_sliding_scores())
-
+        performance = float(training_scores.get_mean_sliding_scores())
         return performance, info
-
-    def get_rollout(self):
-        pass
-
 
     def close(self):
         self.env.close()

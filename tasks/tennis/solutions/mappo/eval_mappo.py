@@ -18,7 +18,6 @@ if __name__ == '__main__':
 
     # Load the agents
     brain_set['TennisBrain'].agents[0].target_actor_critic.load_state_dict(torch.load(SAVED_AGENT_0_FP))
-    brain_set['TennisBrain'].agents[1].target_actor_critic.load_state_dict(torch.load(SAVED_AGENT_1_FP))
 
     brain_set, average_score = simulator.evaluate(
         brain_set,

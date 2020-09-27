@@ -1,10 +1,9 @@
-[trained_tennis_gif]: https://user-images.githubusercontent.com/10624937/42135623-e770e354-7d12-11e8-998d-29fc74429ca2.gif "Trained Agent"
 [mappo_results_image]: solutions/mappo/solution_checkpoint/mappo_training_scores.png "MAPPO Training"
 [matd3_results_image]: solutions/maddpg/solution_checkpoint/independent_madtd3_training_scores.png "MATD3 Training"
 
 # Tennis MAPPO/MATD3 Introduction
-Please see the [repository overview](../../../../README.md) as well as the [task description](./TASK_DETAILS.md)
-before reading this report. The theoretical details of the utilized algorithms can be found in the [repository overview](../../../../README.md).
+Please see the [repository overview](../../README.md) as well as the [task description](./TASK_DETAILS.md)
+before reading this report. The theoretical details of the utilized algorithms can be found in the [repository overview](../../README.md).
 
 In this environment, two agents control rackets to bounce a ball over a net. If an agent hits the ball over the net, it receives a reward of +0.1.  If an agent lets a ball hit the ground or hits the ball out of bounds, it receives a reward of -0.01.  Thus, the goal of each agent is to keep the ball in play.
 
@@ -21,7 +20,7 @@ The unity environment consists of 2 agents which have separate brains (models/op
 but can observe the states and actions of the other agents and use this information during training time.
 
 
-![Trained Agent][trained_tennis_gif]
+<img src="https://github.com/lajd/drl_toolbox/blob/master/tasks/tennis/solutions/mappo/solution_checkpoint/trained_tennis_agent.gif?raw=true" width="700" height="450" />
 
 # Solution Overview
 
@@ -171,13 +170,13 @@ a score of >0.5 in ~ 2700 episodes (15 minutes), and a score of > 1 in about 320
 ![Training MATD3 Agent][matd3_results_image]
 
 
-##### Discussion
+## Discussion
 The MAPPO algorithm converged *significantly* faster than the MATD3 algorithm, achieving a score of >1 about 33x faster
 than the MAPPO algorithm (20 minutes vs. 11 hours). It should be noted, though, that hyper-parameter tuning 
 (especially on the MATD3 algorithm) was not conducted due to the long training duration. Overall, this result demonstrates 
 the robustness of the PPO algorithm to a wide range of tasks.
 
-The MAPPO algorithm, beign on-policy, is shown to be relatively sample inefficient compared to off-policy algorithms such as 
+The MAPPO algorithm, being on-policy, is shown to be relatively sample inefficient compared to off-policy algorithms such as 
 MATD3, where MAPPO achieved a score of > 1 after 3200 episodes compared to 800 episodes by MATD3. The MATD3 algorithm takes
 advantage of prioritized experience replay (PER) to sample experience based on the amount of information the experience provides, while
 the MAPPO algorithm has no such intelligent memory buffer and simply discards trajectories of experience after a few learning epochs.

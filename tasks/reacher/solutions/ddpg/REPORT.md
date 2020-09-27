@@ -1,8 +1,7 @@
 [image1]: https://user-images.githubusercontent.com/10624937/43851024-320ba930-9aff-11e8-8493-ee547c6af349.gif "Trained Agent"
-[image2]: resources/ddpg_baseline.png "DDPG Baseline Results"
 [image3]: resources/per_td3_baseline.png "TD3 PER Baseline Results"
 
-# Reacher (Continuous Control)
+# Reacher
 Please see the [repository overview](../../../../README.md) as well as the [task description](../../TASK_DETAILS.md)
 before reading this report. The theoretical details of the utilized algorithms can be found in the [repository overview](../../../../README.md).
 

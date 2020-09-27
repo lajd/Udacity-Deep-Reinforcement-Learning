@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from typing import Optional
-import numpy as np
 from tools.misc import set_seed
 
 
@@ -25,15 +24,6 @@ class PPO_Actor_Critic(nn.Module):
         pass
 
     def forward(self, state, action=None, scale=1, min_std=0.05, *args, **kargs):
-        """Build Policy.
-
-        Returns
-        ======
-            action (Tensor): predicted action or inputed action
-            log_prob (Tensor): log probability of current action distribution
-            ent (Tensor): entropy of current action distribution
-            value (Tensor): estimate value function
-        """
         assert min_std >= 0 and scale >= 0
         if self.continuous_actions:
             action_mean = self.actor(state)
@@ -73,15 +63,6 @@ class MAPPO_Actor_Critic(nn.Module):
 
     def forward(self, agent_state: torch.FloatTensor, other_agent_states: torch.FloatTensor,
                 other_agent_actions: Optional[torch.FloatTensor] = None, action: Optional[torch.FloatTensor] = None,  min_std=0.05, scale=1,):
-        """Build Policy.
-
-        Returns
-        ======
-            action (Tensor): predicted action or inputed action
-            log_prob (Tensor): log probability of current action distribution
-            ent (Tensor): entropy of current action distribution
-            value (Tensor): estimate value function
-        """
         assert min_std > 0 and scale >= 0, (min_std, scale)
 
         if self.continuous_actions:

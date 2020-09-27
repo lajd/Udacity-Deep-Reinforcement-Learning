@@ -127,4 +127,4 @@ Value channel: </br>
 ![value][image5]
 
 Basic experiments were performed with the above dimensionality techniques, which can be found in [tools](../../../../tools/image_utils.py), 
-however the network has signfiicant difficulty learning from them (at least in the constraints imposed by the memory issue).
+however the network has significant difficulty learning from them (at least in the constraints imposed by the memory issue).

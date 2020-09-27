@@ -1,15 +1,9 @@
 [trained_soccer]:https://user-images.githubusercontent.com/10624937/42135622-e55fb586-7d12-11e8-8a54-3c31da15a90a.gif "Soccer"
 [mappo_results_image]: solutions/mappo/solution_checkpoint/mappo_100_consecutive_wins_training_scores.png "MAPPO Training"
 
-### Multi Agent Soccer Environment
-![Soccer][trained_soccer]
-
-
-
-
 # Soccer MAPPO/MATD3 Introduction
-Please see the [repository overview](../../../../README.md) as well as the [task description](../../TASK_DETAILS.md)
-before reading this report. The theoretical details of the utilized algorithms can be found in the [repository overview](../../../../README.md).
+Please see the [repository overview](../../README.md) as well as the [task description](./TASK_DETAILS.md)
+before reading this report. The theoretical details of the utilized algorithms can be found in the [repository overview](../../README.md).
 
 In this environment, two teams (each with a Striker/Goalie agent) compete against each other in the game of soccer. The agents can move laterally
 and vertically, and the strikers have the additional action of rotating left/right, resulting in 4 and 6 discrete actions for

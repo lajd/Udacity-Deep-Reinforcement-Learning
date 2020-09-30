@@ -22,13 +22,12 @@ TRAINING_SCORES_SAVE_PATH_FN = lambda: join(SOLUTIONS_CHECKPOINT_DIR, f'{SAVE_TA
 NUM_EPISODES = 20000
 MAX_T = 2000
 SOLVE_SCORE = 1
-WARMUP_STEPS = int(1e5)
 SEED = 0
 LR = 1e-4
 WEIGHT_DECAY = 1e-4
-EPSILON = 1e-5
-BATCHNORM = False
-DROPOUT = None
+EPSILON = 1e-6
+BATCHNORM = True
+DROPOUT = 0.1
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -51,7 +50,7 @@ def get_solution_brain_set():
             },
             actor_critic_factory=lambda: MAPPO_Actor_Critic(
                 actor_model=MLP(
-                    layer_sizes=(STATE_SIZE, 400, 300, ACTION_SIZE),
+                    layer_sizes=(STATE_SIZE, 256, 128, ACTION_SIZE),
                     seed=SEED,
                     # output_function=BoundVectorNorm(),
                     output_function=torch.nn.Tanh(),
@@ -63,14 +62,14 @@ def get_solution_brain_set():
                 ),
                 critic_model=MACritic(
                     state_featurizer=MLP(
-                        layer_sizes=(STATE_SIZE*2 + ACTION_SIZE, 400),
+                        layer_sizes=(STATE_SIZE*2 + ACTION_SIZE, 256),
                         with_batchnorm=BATCHNORM,
                         dropout=DROPOUT,
                         seed=SEED,
                         output_function=torch.nn.ReLU(),
                     ),
                     output_module=MLP(
-                        layer_sizes=(400 + ACTION_SIZE, 300, 1),
+                        layer_sizes=(256 + ACTION_SIZE, 128, 1),
                         with_batchnorm=BATCHNORM,
                         dropout=DROPOUT,
                         seed=SEED,
@@ -81,15 +80,15 @@ def get_solution_brain_set():
                 action_size=ACTION_SIZE,
                 continuous_actions=True,
             ),
-            optimizer_factory=lambda params: torch.optim.Adam(
+            optimizer_factory=lambda params: torch.optim.AdamW(
                 params, lr=LR, weight_decay=WEIGHT_DECAY, eps=EPSILON
             ),
             continuous_action_range_clip=(-1, 1),
-            batch_size=512,
-            min_batches_for_training=4,
-            num_learning_updates=4,
+            batch_size=256,
+            min_batches_for_training=16,
+            num_learning_updates=10,
             beta_scheduler=ParameterScheduler(initial=0.01, lambda_fn=lambda i: 0.01, final=0.01),
-            std_scale_scheduler=ParameterScheduler(initial=0.8, lambda_fn=lambda i: 0.8 * 0.999 ** i, final=0.1),
+            std_scale_scheduler=ParameterScheduler(initial=0.8, lambda_fn=lambda i: 0.8 * 0.999 ** i, final=0.2),
             seed=SEED
         )
         tennis_agents.append(agent)

@@ -12,6 +12,7 @@ from agents.models.components.critics import MACritic
 from simulation.utils import multi_agent_step_episode_agents_fn, multi_agent_step_agents_fn
 from tools.layer_initializations import init_layer_inverse_root_fan_in, get_init_layer_within_rage
 from tools.parameter_scheduler import ParameterScheduler
+from agents.models.components.misc import BoundVectorNorm
 
 SAVE_TAG = 'mappo'
 ACTOR_CRITIC_CHECKPOINT_FN = lambda brain_name, agent_num: join(SOLUTIONS_CHECKPOINT_DIR, f'{brain_name}_agent_{agent_num}_{SAVE_TAG}_actor_critic_checkpoint.pth')
@@ -23,10 +24,10 @@ MAX_T = 2000
 SOLVE_SCORE = 1
 WARMUP_STEPS = int(1e5)
 SEED = 0
-LR = 5e-4
+LR = 1e-4
 WEIGHT_DECAY = 1e-4
 EPSILON = 1e-5
-BATCHNORM = True
+BATCHNORM = False
 DROPOUT = None
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -65,7 +66,8 @@ def get_solution_brain_set():
                         layer_sizes=(STATE_SIZE*2 + ACTION_SIZE, 400),
                         with_batchnorm=BATCHNORM,
                         dropout=DROPOUT,
-                        seed=SEED
+                        seed=SEED,
+                        output_function=torch.nn.ReLU(),
                     ),
                     output_module=MLP(
                         layer_sizes=(400 + ACTION_SIZE, 300, 1),
@@ -87,7 +89,7 @@ def get_solution_brain_set():
             min_batches_for_training=4,
             num_learning_updates=4,
             beta_scheduler=ParameterScheduler(initial=0.01, lambda_fn=lambda i: 0.01, final=0.01),
-            std_scale_scheduler=ParameterScheduler(initial=0.8, lambda_fn=lambda i: 0.8 * 0.999 ** i, final=0.2),
+            std_scale_scheduler=ParameterScheduler(initial=0.8, lambda_fn=lambda i: 0.8 * 0.999 ** i, final=0.1),
             seed=SEED
         )
         tennis_agents.append(agent)

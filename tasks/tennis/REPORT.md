@@ -35,133 +35,141 @@ attributes (states/actions) and the attributes of other agents.
 
 ### MAPPO Solution
 
+The MAPPO actor-critic:
 ```
-{'state_shape': 24,
- 'action_size': 2,
- 'warmup': False,
- 't_step': 0,
- 'episode_counter': 0,
- 'param_capture': <tools.parameter_capture.ParameterCapture at 0x7f1e082d5128>,
- 'training': True,
- 'seed': None,
- 'online_actor_critic': MAPPO_Actor_Critic(
-   (actor): MLP(
-     (mlp_layers): Sequential(
-       (0): BatchNorm1d(24, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-       (1): Linear(in_features=24, out_features=256, bias=True)
-       (2): BatchNorm1d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-       (3): LeakyReLU(negative_slope=0.01)
-       (4): Linear(in_features=256, out_features=128, bias=True)
-       (5): BatchNorm1d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-       (6): LeakyReLU(negative_slope=0.01)
-       (7): Linear(in_features=128, out_features=2, bias=True)
-       (8): Tanh()
-     )
-   )
-   (critic): MACritic(
-     (state_featurizer): MLP(
-       (mlp_layers): Sequential(
-         (0): BatchNorm1d(50, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-         (1): Linear(in_features=50, out_features=256, bias=True)
-       )
-     )
-     (output_module): MLP(
-       (mlp_layers): Sequential(
-         (0): BatchNorm1d(258, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-         (1): Linear(in_features=258, out_features=128, bias=True)
-         (2): BatchNorm1d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-         (3): LeakyReLU(negative_slope=0.01)
-         (4): Linear(in_features=128, out_features=1, bias=True)
-         (5): Tanh()
-       )
-     )
-   )
- ),
- 'target_actor_critic': MAPPO_Actor_Critic(
-   (actor): MLP(
-     (mlp_layers): Sequential(
-       (0): BatchNorm1d(24, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-       (1): Linear(in_features=24, out_features=256, bias=True)
-       (2): BatchNorm1d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-       (3): LeakyReLU(negative_slope=0.01)
-       (4): Linear(in_features=256, out_features=128, bias=True)
-       (5): BatchNorm1d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-       (6): LeakyReLU(negative_slope=0.01)
-       (7): Linear(in_features=128, out_features=2, bias=True)
-       (8): Tanh()
-     )
-   )
-   (critic): MACritic(
-     (state_featurizer): MLP(
-       (mlp_layers): Sequential(
-         (0): BatchNorm1d(50, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-         (1): Linear(in_features=50, out_features=256, bias=True)
-       )
-     )
-     (output_module): MLP(
-       (mlp_layers): Sequential(
-         (0): BatchNorm1d(258, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-         (1): Linear(in_features=258, out_features=128, bias=True)
-         (2): BatchNorm1d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-         (3): LeakyReLU(negative_slope=0.01)
-         (4): Linear(in_features=128, out_features=1, bias=True)
-         (5): Tanh()
-       )
-     )
-   )
- ),
- 'optimizer': Adam (
- Parameter Group 0
-     amsgrad: False
-     betas: (0.9, 0.999)
-     eps: 1e-05
-     lr: 0.001
-     weight_decay: 0.0001
- ),
- 'trajectory_memory': <agents.memory.trajectories.Trajectories at 0x7f1e08262748>,
- 'grad_clip': 1.0,
- 'gamma': 0.99,
- 'batch_size': 512,
- 'gae_factor': 0.95,
- 'beta_scheduler': <tools.parameter_scheduler.ParameterScheduler at 0x7f1e082d5048>,
- 'epsilon': 0.2,
- 'beta': 0.02,
- 'std_scale_scheduler': <tools.parameter_scheduler.ParameterScheduler at 0x7f1e082d5080>,
- 'std_scale': 0.3,
- 'continuous_actions': False,
- 'continuous_action_range_clip': (-1, 1),
- 'min_batches_for_training': 4,
- 'num_learning_updates': 4,
- 'current_trajectory': [],
- 'agent_id': 'TennisBrain_0',
- 'map_agent_to_state_slice': {'TennisBrain_0': <function __main__.get_solution_brain_set.<locals>.<lambda>(t)>,
-  'TennisBrain_1': <function __main__.get_solution_brain_set.<locals>.<lambda>(t)>},
- 'map_agent_to_action_slice': {'TennisBrain_0': <function __main__.get_solution_brain_set.<locals>.<lambda>(t)>,
-  'TennisBrain_1': <function __main__.get_solution_brain_set.<locals>.<lambda>(t)>}}
+MAPPO_Actor_Critic(
+  (actor): MLP(
+    (mlp_layers): Sequential(
+      (0): Linear(in_features=24, out_features=400, bias=True)
+      (1): ReLU(inplace=True)
+      (2): Linear(in_features=400, out_features=300, bias=True)
+      (3): ReLU(inplace=True)
+      (4): Linear(in_features=300, out_features=2, bias=True)
+      (5): Tanh()
+    )
+  )
+  (critic): MACritic(
+    (state_featurizer): MLP(
+      (mlp_layers): Sequential(
+        (0): Linear(in_features=50, out_features=400, bias=True)
+        (1): ReLU(inplace=True)
+        (2): ReLU()
+      )
+    )
+    (output_module): MLP(
+      (mlp_layers): Sequential(
+        (0): Linear(in_features=402, out_features=300, bias=True)
+        (1): ReLU(inplace=True)
+        (2): Linear(in_features=300, out_features=1, bias=True)
+      )
+    )
+  )
+)
 
 ```
 
-The model hyper-parameters are given below:
+With model hyper-parameters:
 
 ```
-NUM_EPISODES = 10000
+NUM_EPISODES = 20000
 MAX_T = 2000
 SOLVE_SCORE = 1
 WARMUP_STEPS = int(1e5)
 SEED = 0
-LR = 1e-3
+LR = 1e-4
 WEIGHT_DECAY = 1e-4
 EPSILON = 1e-5
-BATCHNORM = True
+BATCHNORM = False
 DROPOUT = None
 ```
 
+### MATD3 Solution
 
+The MATD3 actor:
+
+```
+MLP(
+  (mlp_layers): Sequential(
+    (0): BatchNorm1d(24, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (1): Linear(in_features=24, out_features=400, bias=True)
+    (2): BatchNorm1d(400, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (3): ReLU(inplace=True)
+    (4): Dropout(p=0.1, inplace=False)
+    (5): Linear(in_features=400, out_features=300, bias=True)
+    (6): BatchNorm1d(300, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (7): ReLU(inplace=True)
+    (8): Dropout(p=0.1, inplace=False)
+    (9): Linear(in_features=300, out_features=2, bias=True)
+    (10): BoundVectorNorm()
+  )
+)
+```
+
+The MATD3 critic:
+
+```
+MATD3Critic(
+  (q_network_a): MACritic(
+    (state_featurizer): MLP(
+      (mlp_layers): Sequential(
+        (0): BatchNorm1d(50, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (1): Linear(in_features=50, out_features=400, bias=True)
+        (2): ReLU(inplace=True)
+      )
+    )
+    (output_module): MLP(
+      (mlp_layers): Sequential(
+        (0): BatchNorm1d(402, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (1): Linear(in_features=402, out_features=300, bias=True)
+        (2): BatchNorm1d(300, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (3): ReLU(inplace=True)
+        (4): Linear(in_features=300, out_features=1, bias=True)
+      )
+    )
+  )
+  (q_network_b): MACritic(
+    (state_featurizer): MLP(
+      (mlp_layers): Sequential(
+        (0): BatchNorm1d(50, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (1): Linear(in_features=50, out_features=400, bias=True)
+        (2): ReLU(inplace=True)
+      )
+    )
+    (output_module): MLP(
+      (mlp_layers): Sequential(
+        (0): BatchNorm1d(402, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (1): Linear(in_features=402, out_features=300, bias=True)
+        (2): BatchNorm1d(300, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (3): ReLU(inplace=True)
+        (4): Linear(in_features=300, out_features=1, bias=True)
+      )
+    )
+  )
+)
+
+```
+
+With model hyper-parameters:
+
+```
+NUM_EPISODES = 10000
+MAX_T = 1000
+SOLVE_SCORE = 1
+WARMUP_STEPS = int(1e5)
+BUFFER_SIZE = int(1e6)  # replay buffer size
+SEED = 0
+BATCH_SIZE = 1024
+BATCHNORM = True
+DROPOUT = 0.1
+MATD3: bool = True
+ACTOR_LR = 1e-3
+CRITIC_LR = 1e-4
+```
 ##### Results
 
 Below we show the reward plot, obtained by averaging over the agents' shared rewards (blue) over 100 episodes (red).
-The episodic reward is computed by taking the maximum reward between the two agents at each episode. The algorithm achieves
-a score of >0.5 in ~ 2700 episodes (15 minutes), and a score of > 1 in about 3200 episodes (18 minutes)
+The episodic reward is computed by taking the maximum reward between the two agents at each episode. The MAPPO 
+algorithm achieves a score of >0.5 in ~ 7500 episodes (15 minutes), and a score of > 1 in about 3200 episodes (18 minutes)
 
 ###### Results for MAPPO:
 ![Training MAPPO Agent][mappo_results_image]
